@@ -1,4 +1,5 @@
 import './style.css';
+import { loadItinerary } from './itinerary/load.js';
 
 const baseUrl = import.meta.env.BASE_URL;
 const markUrl = `${baseUrl}favicon.svg`;
@@ -38,15 +39,12 @@ document.querySelector('#app').innerHTML = `
           <button class="text-button" type="button" id="show-states" aria-expanded="false" aria-controls="state-showcase">View app states</button>
         </div>
 
-        <article class="journey-card" data-testid="primary-content">
-          <div class="date-tile" aria-hidden="true"><strong>18</strong><span>SEP</span></div>
-          <div class="journey-copy">
-            <p class="journey-label">Sample journey</p>
-            <h3>City break</h3>
-            <p>3 days · Your plans, available at a glance</p>
-          </div>
-          <span class="card-arrow" aria-hidden="true">→</span>
-        </article>
+        <div id="itinerary-panel" data-testid="primary-content" aria-live="polite">
+          <article class="state-card state-loading itinerary-state">
+            <span class="spinner" aria-hidden="true"></span>
+            <div><h3>Loading itinerary</h3><p role="status">Checking your trip data…</p></div>
+          </article>
+        </div>
 
         <div class="state-showcase" id="state-showcase" hidden>
           <article class="state-card state-loading" aria-labelledby="loading-title">
@@ -98,3 +96,198 @@ document.querySelector('.retry-button').addEventListener('click', () => {
   state.className = 'state-card state-recovered';
   state.innerHTML = '<span class="state-symbol" aria-hidden="true">✓</span><div><h3>Journeys restored</h3><p role="status">You are back on track.</p></div>';
 });
+
+const itineraryPanel = document.querySelector('#itinerary-panel');
+const itinerarySectionTitle = document.querySelector('#up-next-title');
+let currentItinerary;
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function tripMetadataMarkup(itinerary) {
+  const { trip } = itinerary;
+  const [year, month, day] = trip.startDate.split('-').map(Number);
+  const monthLabel = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(year, month - 1, day)))
+    .toUpperCase();
+  return `
+    <article class="journey-card">
+      <div class="date-tile" aria-hidden="true"><strong>${escapeHtml(String(day).padStart(2, '0'))}</strong><span>${escapeHtml(monthLabel)}</span></div>
+      <div class="journey-copy">
+        <p class="journey-label">Validated itinerary · schema ${escapeHtml(itinerary.schemaVersion)}</p>
+        <h3 data-testid="trip-title">${escapeHtml(trip.title)}</h3>
+        ${trip.summary ? `<p class="trip-summary">${escapeHtml(trip.summary)}</p>` : ''}
+        <dl class="trip-meta">
+          <div><dt>Dates</dt><dd data-testid="trip-date-range">${escapeHtml(trip.startDate)} – ${escapeHtml(trip.endDate)}</dd></div>
+          <div><dt>Time zone</dt><dd data-testid="trip-time-zone">${escapeHtml(trip.timeZone)}</dd></div>
+        </dl>
+      </div>
+      <span class="card-arrow" aria-hidden="true">→</span>
+    </article>`;
+}
+
+function routeDayId() {
+  return new URL(globalThis.location.href).searchParams.get('day');
+}
+
+function routeUrl(dayId) {
+  const url = new URL(baseUrl, globalThis.location.origin);
+  if (dayId) url.searchParams.set('day', dayId);
+  return `${url.pathname}${url.search}`;
+}
+
+function dayHeading(day) {
+  return day.title || day.date;
+}
+
+function renderActivity(activity) {
+  return `
+    <li class="activity-card" data-testid="activity-item">
+      <div class="activity-heading">
+        <h4>${escapeHtml(activity.title)}</h4>
+        ${activity.category ? `<span class="activity-category">${escapeHtml(activity.category)}</span>` : ''}
+      </div>
+      <dl class="activity-meta">
+        <div><dt>Starts</dt><dd><time datetime="${escapeHtml(activity.startsAt)}">${escapeHtml(activity.startsAt)}</time></dd></div>
+        ${activity.endsAt ? `<div><dt>Ends</dt><dd><time datetime="${escapeHtml(activity.endsAt)}">${escapeHtml(activity.endsAt)}</time></dd></div>` : ''}
+        ${activity.location ? `<div><dt>Location</dt><dd>${escapeHtml(activity.location)}</dd></div>` : ''}
+      </dl>
+      ${activity.notes ? `<p class="activity-notes">${escapeHtml(activity.notes)}</p>` : ''}
+    </li>`;
+}
+
+function renderDayNavigation(days, selectedId) {
+  return `
+    <nav class="day-navigation" aria-label="Itinerary days">
+      <ol>
+        ${days.map((day) => `
+          <li>
+            <a class="day-nav-link${day.id === selectedId ? ' is-selected' : ''}" href="${escapeHtml(routeUrl(day.id))}" data-route-day="${escapeHtml(day.id)}"${day.id === selectedId ? ' aria-current="page"' : ''}>
+              <span>${escapeHtml(day.date)}</span>
+              ${day.title ? `<strong>${escapeHtml(day.title)}</strong>` : ''}
+            </a>
+          </li>`).join('')}
+      </ol>
+    </nav>`;
+}
+
+function renderTripOverview(itinerary) {
+  const { trip } = itinerary;
+  itinerarySectionTitle.textContent = 'Trip overview';
+  itineraryPanel.innerHTML = `
+    ${tripMetadataMarkup(itinerary)}
+    ${trip.days.length ? `
+      <section class="itinerary-days" aria-labelledby="itinerary-days-title">
+        <div class="days-heading"><p class="eyebrow">In source order</p><h3 id="itinerary-days-title">Itinerary days</h3></div>
+        <ol class="day-list">
+          ${trip.days.map((day) => `
+            <li>
+              <a class="day-card" href="${escapeHtml(routeUrl(day.id))}" data-route-day="${escapeHtml(day.id)}">
+                <div class="day-card-heading">
+                  <time datetime="${escapeHtml(day.date)}">${escapeHtml(day.date)}</time>
+                  ${day.title ? `<h4>${escapeHtml(day.title)}</h4>` : ''}
+                </div>
+                ${day.activities.length ? `<ul class="activity-preview" aria-label="Activities">${day.activities.map((activity) => `<li>${escapeHtml(activity.title)}</li>`).join('')}</ul>` : '<p class="day-empty">No activities planned for this day.</p>'}
+                <span class="day-card-action">View day <span aria-hidden="true">→</span></span>
+              </a>
+            </li>`).join('')}
+        </ol>
+      </section>` : `
+      <article class="state-card state-empty itinerary-empty" data-testid="empty-itinerary">
+        <span class="state-symbol" aria-hidden="true">＋</span>
+        <div><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></div>
+      </article>`}`;
+  bindRouteLinks();
+}
+
+function renderDayDetail(itinerary, day) {
+  const { trip } = itinerary;
+  const index = trip.days.indexOf(day);
+  const previous = trip.days[index - 1];
+  const next = trip.days[index + 1];
+  itinerarySectionTitle.textContent = 'Day details';
+  itineraryPanel.innerHTML = `
+    <article class="day-detail" data-testid="day-detail">
+      <a class="overview-link" href="${escapeHtml(routeUrl())}" data-route-overview>← Trip overview</a>
+      ${renderDayNavigation(trip.days, day.id)}
+      <header class="day-detail-heading">
+        <p class="eyebrow">Day ${index + 1} of ${trip.days.length}</p>
+        <h3 data-testid="selected-day-title">${escapeHtml(dayHeading(day))}</h3>
+        <time data-testid="selected-day-date" datetime="${escapeHtml(day.date)}">${escapeHtml(day.date)}</time>
+      </header>
+      ${day.activities.length ? `<ol class="activity-list">${day.activities.map(renderActivity).join('')}</ol>` : `
+        <article class="state-card state-empty day-detail-empty" data-testid="empty-day">
+          <span class="state-symbol" aria-hidden="true">＋</span>
+          <div><h4>No activities planned</h4><p>No activities planned for this day.</p></div>
+        </article>`}
+      <nav class="day-pager" aria-label="Adjacent itinerary days">
+        ${previous ? `<a href="${escapeHtml(routeUrl(previous.id))}" data-route-day="${escapeHtml(previous.id)}">← ${escapeHtml(dayHeading(previous))}</a>` : '<span></span>'}
+        ${next ? `<a href="${escapeHtml(routeUrl(next.id))}" data-route-day="${escapeHtml(next.id)}">${escapeHtml(dayHeading(next))} →</a>` : '<span></span>'}
+      </nav>
+    </article>`;
+  bindRouteLinks();
+}
+
+function renderCurrentRoute() {
+  if (!currentItinerary) return;
+  const selectedDay = currentItinerary.trip.days.find((day) => day.id === routeDayId());
+  if (selectedDay) renderDayDetail(currentItinerary, selectedDay);
+  else renderTripOverview(currentItinerary);
+}
+
+function navigate(dayId) {
+  globalThis.history.pushState({ dayId: dayId || null }, '', routeUrl(dayId));
+  renderCurrentRoute();
+  itinerarySectionTitle.setAttribute('tabindex', '-1');
+  itinerarySectionTitle.focus({ preventScroll: true });
+}
+
+function bindRouteLinks() {
+  for (const link of itineraryPanel.querySelectorAll('[data-route-day]')) {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      navigate(event.currentTarget.dataset.routeDay);
+    });
+  }
+  itineraryPanel.querySelector('[data-route-overview]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    navigate();
+  });
+}
+
+function renderItineraryError(error) {
+  itineraryPanel.innerHTML = `
+    <article class="state-card state-error itinerary-state">
+      <span class="state-symbol" aria-hidden="true">!</span>
+      <div>
+        <h3>Could not load itinerary</h3>
+        <p role="alert" data-testid="itinerary-error">${escapeHtml(error.message)}</p>
+        <button class="retry-button itinerary-retry" type="button">Try itinerary again</button>
+      </div>
+    </article>`;
+  itineraryPanel.querySelector('.itinerary-retry').addEventListener('click', loadAndRenderItinerary);
+}
+
+async function loadAndRenderItinerary() {
+  itineraryPanel.innerHTML = `
+    <article class="state-card state-loading itinerary-state">
+      <span class="spinner" aria-hidden="true"></span>
+      <div><h3>Loading itinerary</h3><p role="status">Checking your trip data…</p></div>
+    </article>`;
+  try {
+    currentItinerary = await loadItinerary();
+    renderCurrentRoute();
+  } catch (error) {
+    currentItinerary = undefined;
+    renderItineraryError(error);
+  }
+}
+
+globalThis.addEventListener('popstate', renderCurrentRoute);
+loadAndRenderItinerary();

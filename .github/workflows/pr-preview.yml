@@ -1,0 +1,179 @@
+name: Publish pull request preview
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
+permissions:
+  contents: write
+  pages: write
+  pull-requests: write
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PREVIEW_NUMBER: ${{ github.event.pull_request.number }}
+      PREVIEW_BASE: /${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.pull_request.number }}/
+      PREVIEW_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.pull_request.number }}/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build the pull request preview
+        id: build
+        env:
+          BASE_PATH: ${{ env.PREVIEW_BASE }}
+        shell: bash
+        run: |
+          npm run build
+          expected_asset=$(sed -n 's/.*src="\([^"]*assets\/[^"]*\.js\)".*/\1/p' dist/index.html | head -n 1)
+          [[ "$expected_asset" == "${PREVIEW_BASE}"* ]]
+          echo "expected_asset=$expected_asset" >> "$GITHUB_OUTPUT"
+      - name: Check out the Pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+          path: .pages-site
+      - name: Update only this pull request preview
+        shell: bash
+        run: |
+          [[ "$PREVIEW_NUMBER" =~ ^[0-9]+$ ]]
+          preview_directory=".pages-site/pr-preview/pr-${PREVIEW_NUMBER}"
+          mkdir -p "$preview_directory"
+          rsync -a --delete dist/ "$preview_directory/"
+          touch .pages-site/.nojekyll
+      - name: Publish the Pages branch
+        working-directory: .pages-site
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add --all
+          if git diff --cached --quiet; then
+            echo 'This preview bundle is already current.'
+            exit 0
+          fi
+          git commit -m "Publish PR ${PREVIEW_NUMBER} preview from ${GITHUB_SHA}"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin gh-pages
+            if ! git rebase origin/gh-pages; then
+              git rebase --abort || true
+              sleep $((attempt * 2))
+              continue
+            fi
+            if git push origin HEAD:gh-pages; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          echo 'Unable to publish the Pages branch after five attempts.' >&2
+          exit 1
+      - name: Request a Pages build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${GITHUB_REPOSITORY}/pages/builds"
+      - name: Wait for the exact preview bundle
+        env:
+          EXPECTED_ASSET: ${{ steps.build.outputs.expected_asset }}
+        shell: bash
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error "${PREVIEW_URL}?build=${GITHUB_SHA}" | grep --fixed-strings --quiet "$EXPECTED_ASSET"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'The exact pull request preview did not become available in time.' >&2
+          exit 1
+      - name: Add or update the preview link
+        uses: actions/github-script@v9
+        env:
+          PREVIEW_MARKER: '<!-- travel-app-pr-preview -->'
+        with:
+          script: |
+            const marker = process.env.PREVIEW_MARKER;
+            const body = `${marker}\nPreview: [${process.env.PREVIEW_URL}](${process.env.PREVIEW_URL})\n\nPublished from \`${context.sha}\`.`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const previous = comments.find((comment) => comment.user.type === 'Bot' && comment.body.includes(marker));
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PREVIEW_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Check out the Pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+      - name: Remove only this pull request preview
+        shell: bash
+        run: |
+          [[ "$PREVIEW_NUMBER" =~ ^[0-9]+$ ]]
+          preview_directory="pr-preview/pr-${PREVIEW_NUMBER}"
+          if [[ ! -d "$preview_directory" ]]; then
+            echo 'No preview directory exists for this pull request.'
+            exit 0
+          fi
+          rm -rf -- "$preview_directory"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add --all
+          git commit -m "Remove PR ${PREVIEW_NUMBER} preview"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin gh-pages
+            if ! git rebase origin/gh-pages; then
+              git rebase --abort || true
+              sleep $((attempt * 2))
+              continue
+            fi
+            if git push origin HEAD:gh-pages; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          echo 'Unable to publish preview cleanup after five attempts.' >&2
+          exit 1
+      - name: Request a Pages build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${GITHUB_REPOSITORY}/pages/builds"

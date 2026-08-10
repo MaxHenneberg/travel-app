@@ -1,7 +1,9 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 const mapping = JSON.parse(await readFile(new URL('../test-cases.json', import.meta.url), 'utf8'));
-const spec = await readFile(new URL('../tests/integration/story.spec.js', import.meta.url), 'utf8');
+const specDirectory = new URL('../tests/integration/', import.meta.url);
+const specFiles = (await readdir(specDirectory, { recursive: true })).filter((name) => name.endsWith('.spec.js'));
+const spec = (await Promise.all(specFiles.map((name) => readFile(new URL(name.replaceAll('\\', '/'), specDirectory), 'utf8')))).join('\n');
 const expectedId = /^TA-(TRAVEL-\d+)-(\d{2})$/;
 const seenIds = new Set();
 const seenJiraKeys = new Set();

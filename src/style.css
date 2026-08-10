@@ -100,7 +100,83 @@ h2 { margin: 0; font-size: clamp(1.5rem, 6vw, 2rem); letter-spacing: -0.035em; }
 .journey-copy h3 { margin: 0.15rem 0 0.3rem; font-size: 1.05rem; }
 .journey-copy p { margin: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
 .journey-copy .journey-label { color: #397466; font-weight: 750; }
+.journey-copy .trip-summary { margin-top: 0.35rem; }
+.trip-meta { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0.65rem 0 0; }
+.trip-meta div { min-width: 0; }
+.trip-meta dt { color: #397466; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.trip-meta dd { margin: 0.1rem 0 0; color: var(--ink); font-size: 0.75rem; font-weight: 700; }
 .card-arrow { color: #397466; font-size: 1.4rem; }
+.itinerary-state { min-height: 6rem; }
+
+.itinerary-days { margin-top: var(--space-4); }
+.days-heading { margin-bottom: var(--space-2); }
+.days-heading h3 { margin: 0; font-size: 1.2rem; }
+.day-list, .activity-list, .activity-preview, .day-navigation ol { margin: 0; padding: 0; list-style: none; }
+.day-list { display: grid; gap: var(--space-2); }
+.day-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-3);
+  min-height: 48px;
+  padding: var(--space-3);
+  color: var(--ink);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.day-card:hover { border-color: #86aa9f; }
+.day-card-heading time { color: #397466; font-size: 0.75rem; font-weight: 800; }
+.day-card-heading h4 { margin: 0.2rem 0 0; font-size: 1rem; }
+.activity-preview { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.activity-preview li { padding: 0.25rem 0.55rem; color: #31594f; font-size: 0.75rem; border-radius: 999px; background: #e8f1ed; }
+.day-empty { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 0.8rem; }
+.day-card-action { grid-column: 2; grid-row: 1; align-self: center; color: #256052; font-size: 0.8rem; font-weight: 800; white-space: nowrap; }
+.itinerary-empty { margin-top: var(--space-4); }
+
+.day-detail { display: grid; gap: var(--space-4); }
+.overview-link, .day-pager a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  color: #256052;
+  font-weight: 800;
+  text-decoration: none;
+}
+.overview-link { justify-self: start; }
+.day-navigation { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.day-navigation ol { display: flex; gap: var(--space-1); padding: 3px; }
+.day-navigation li { flex: 0 0 min(10rem, 44vw); }
+.day-nav-link {
+  display: grid;
+  min-height: 56px;
+  align-content: center;
+  padding: 0.55rem 0.7rem;
+  color: var(--muted);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.day-nav-link span { font-size: 0.7rem; }
+.day-nav-link strong { margin-top: 0.15rem; overflow: hidden; font-size: 0.82rem; text-overflow: ellipsis; white-space: nowrap; }
+.day-nav-link.is-selected { color: #174d40; border: 3px solid #2b7363; background: #e5f0eb; box-shadow: inset 0 -4px #e9a846; }
+.day-detail-heading { padding: var(--space-4); border-radius: var(--radius-lg); background: #edf4f0; }
+.day-detail-heading h3 { margin: 0; font-size: clamp(1.5rem, 7vw, 2.4rem); }
+.day-detail-heading time { display: block; margin-top: var(--space-1); color: #397466; font-weight: 750; }
+.activity-list { display: grid; gap: var(--space-2); }
+.activity-card { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }
+.activity-heading { display: flex; align-items: start; justify-content: space-between; gap: var(--space-2); }
+.activity-heading h4 { margin: 0; }
+.activity-category { flex: 0 0 auto; padding: 0.2rem 0.5rem; color: var(--accent-dark); font-size: 0.7rem; font-weight: 800; border-radius: 999px; background: #f8e7cb; }
+.activity-meta { display: grid; gap: var(--space-1); margin: var(--space-3) 0 0; }
+.activity-meta div { min-width: 0; }
+.activity-meta dt { color: #397466; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.activity-meta dd { margin: 0.15rem 0 0; overflow-wrap: anywhere; font-size: 0.8rem; }
+.activity-notes { margin: var(--space-2) 0 0; color: var(--muted); font-size: 0.85rem; }
+.day-detail-empty h4 { margin: 0 0 0.25rem; }
+.day-pager { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2); border-top: 1px solid var(--line); }
+.day-pager a:last-child { justify-self: end; text-align: right; }
 
 .state-showcase { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
 .state-showcase[hidden] { display: none; }
@@ -133,6 +209,15 @@ h2 { margin: 0; font-size: clamp(1.5rem, 6vw, 2rem); letter-spacing: -0.035em; }
   .bottom-nav { position: sticky; top: 0; grid-column: 1; grid-row: 2; grid-template-columns: 1fr; align-content: start; height: calc(100vh - 81px); padding: var(--space-3) 0.65rem; border-top: 0; border-right: 1px solid var(--line); box-shadow: none; }
   .nav-item { min-height: 72px; }
   .state-showcase { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .day-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .activity-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 359px) {
+  .journey-card { grid-template-columns: auto minmax(0, 1fr); }
+  .card-arrow { display: none; }
+  .day-card { grid-template-columns: minmax(0, 1fr); }
+  .day-card-action { grid-column: 1; grid-row: auto; justify-self: start; }
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
