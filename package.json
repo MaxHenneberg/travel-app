@@ -1,0 +1,23 @@
+{
+  "name": "travel-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/create-pages-fallback.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "npm run test:traceability && npm run test:integration",
+    "test:integration": "playwright test",
+    "test:traceability": "node scripts/validate-traceability.mjs",
+    "test:traceability:jira": "node scripts/validate-traceability.mjs --jira",
+    "report:jira": "node scripts/report-jira-results.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "vite": "8.2.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

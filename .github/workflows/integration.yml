@@ -1,0 +1,47 @@
+name: Integration tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_PATH: /travel-app/
+      JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      TEST_ENVIRONMENT: pull-request production preview
+      TEST_STARTED_AT: ${{ github.event.repository.updated_at }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:traceability
+      - name: Validate mappings against Jira
+        if: env.JIRA_BASE_URL != '' && env.JIRA_EMAIL != '' && env.JIRA_API_TOKEN != ''
+        run: npm run test:traceability:jira
+      - name: Run pull-request browser tests
+        run: npm run test:integration -- --grep @pr
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-pr-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+      - name: Report results to Jira
+        if: always() && env.JIRA_BASE_URL != '' && env.JIRA_EMAIL != '' && env.JIRA_API_TOKEN != ''
+        run: npm run report:jira
