@@ -16,8 +16,12 @@ jobs:
       JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
       JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
       JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      TEST_EXECUTION: pull-request
       TEST_ENVIRONMENT: pull-request production preview
-      TEST_STARTED_AT: ${{ github.event.repository.updated_at }}
+      TEST_EVIDENCE_SOURCE: automated
+      TEST_ARTIFACT_NAMES: playwright-pr-${{ github.run_attempt }}
+      GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+      TRUSTED_RUN: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +35,9 @@ jobs:
       - name: Validate mappings against Jira
         if: env.JIRA_BASE_URL != '' && env.JIRA_EMAIL != '' && env.JIRA_API_TOKEN != ''
         run: npm run test:traceability:jira
+      - name: Record browser-test start time
+        shell: bash
+        run: echo "TEST_STARTED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Run pull-request browser tests
         run: npm run test:integration -- --grep @pr
       - name: Upload browser evidence
@@ -43,5 +50,7 @@ jobs:
             test-results/
           retention-days: 14
       - name: Report results to Jira
-        if: always() && env.JIRA_BASE_URL != '' && env.JIRA_EMAIL != '' && env.JIRA_API_TOKEN != ''
+        if: ${{ !cancelled() && env.TRUSTED_RUN == 'true' && env.JIRA_BASE_URL != '' && env.JIRA_EMAIL != '' && env.JIRA_API_TOKEN != '' }}
+        env:
+          TEST_JOB_STATUS: ${{ job.status }}
         run: npm run report:jira
