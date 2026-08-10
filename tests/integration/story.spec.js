@@ -53,3 +53,51 @@ test('TA-TRAVEL-3-03 @post-deploy smoke-tests the deployed page on an Android vi
   await expect(page.locator('.welcome')).toBeInViewport();
   expect(errors).toEqual([]);
 });
+
+test('TA-TRAVEL-4-01 @pr uses the application shell at the minimum supported width', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'android-chrome', 'Android profile coverage');
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto('./');
+
+  await expect(page.getByTestId('primary-content')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('TA-TRAVEL-4-02 @pr supports touch navigation in portrait and landscape', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'android-chrome', 'Android profile coverage');
+  await page.goto('./');
+
+  const explore = page.getByRole('button', { name: 'Explore', exact: true });
+  const size = await explore.boundingBox();
+  expect(size?.width).toBeGreaterThanOrEqual(48);
+  expect(size?.height).toBeGreaterThanOrEqual(48);
+  await explore.tap();
+  await expect(explore).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Explore');
+
+  await page.setViewportSize({ width: 915, height: 412 });
+  const saved = page.getByRole('button', { name: 'Saved', exact: true });
+  await saved.tap();
+  await expect(saved).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('primary-content')).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('TA-TRAVEL-4-03 @pr renders distinct accessible states and recovers from an error', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Chromium coverage');
+  await page.goto('./');
+  await page.getByRole('button', { name: 'View app states' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Loading journeys' })).toBeVisible();
+  await expect(page.getByRole('status', { name: '' }).filter({ hasText: 'Bringing your plans together' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No journeys yet' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Could not load journeys' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByRole('heading', { name: 'Journeys restored' })).toBeVisible();
+  await expect(page.getByText('You are back on track.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Could not load journeys' })).toHaveCount(0);
+});

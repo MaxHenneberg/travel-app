@@ -5,6 +5,7 @@ const spec = await readFile(new URL('../tests/integration/story.spec.js', import
 const expectedId = /^TA-(TRAVEL-\d+)-(\d{2})$/;
 const seenIds = new Set();
 const seenJiraKeys = new Set();
+const stories = new Set(mapping.stories ?? (mapping.story ? [mapping.story] : []));
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -15,7 +16,7 @@ for (const testCase of mapping.cases) {
   assert(match, `Invalid stable test ID: ${testCase.id}`);
   assert(!seenIds.has(testCase.id), `Duplicate stable test ID: ${testCase.id}`);
   assert(!seenJiraKeys.has(testCase.jiraKey), `Jira task mapped more than once: ${testCase.jiraKey}`);
-  assert(testCase.story === mapping.story, `${testCase.id} is mapped to ${testCase.story}, expected ${mapping.story}`);
+  assert(stories.has(testCase.story), `${testCase.id} references undeclared Story ${testCase.story}`);
   assert(match[1] === testCase.story, `${testCase.id} encodes a different Story from ${testCase.story}`);
   assert((spec.match(new RegExp(testCase.id, 'g')) ?? []).length === 1, `${testCase.id} must appear exactly once in the Playwright spec`);
   seenIds.add(testCase.id);
