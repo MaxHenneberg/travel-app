@@ -1,4 +1,5 @@
 import './style.css';
+import { loadItinerary } from './itinerary/load.js';
 
 const baseUrl = import.meta.env.BASE_URL;
 const markUrl = `${baseUrl}favicon.svg`;
@@ -38,15 +39,12 @@ document.querySelector('#app').innerHTML = `
           <button class="text-button" type="button" id="show-states" aria-expanded="false" aria-controls="state-showcase">View app states</button>
         </div>
 
-        <article class="journey-card" data-testid="primary-content">
-          <div class="date-tile" aria-hidden="true"><strong>18</strong><span>SEP</span></div>
-          <div class="journey-copy">
-            <p class="journey-label">Sample journey</p>
-            <h3>City break</h3>
-            <p>3 days · Your plans, available at a glance</p>
-          </div>
-          <span class="card-arrow" aria-hidden="true">→</span>
-        </article>
+        <div id="itinerary-panel" data-testid="primary-content" aria-live="polite">
+          <article class="state-card state-loading itinerary-state">
+            <span class="spinner" aria-hidden="true"></span>
+            <div><h3>Loading itinerary</h3><p role="status">Checking your trip data…</p></div>
+          </article>
+        </div>
 
         <div class="state-showcase" id="state-showcase" hidden>
           <article class="state-card state-loading" aria-labelledby="loading-title">
@@ -98,3 +96,64 @@ document.querySelector('.retry-button').addEventListener('click', () => {
   state.className = 'state-card state-recovered';
   state.innerHTML = '<span class="state-symbol" aria-hidden="true">✓</span><div><h3>Journeys restored</h3><p role="status">You are back on track.</p></div>';
 });
+
+const itineraryPanel = document.querySelector('#itinerary-panel');
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function renderItinerary(itinerary) {
+  const { trip } = itinerary;
+  const [year, month, day] = trip.startDate.split('-').map(Number);
+  const monthLabel = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(year, month - 1, day)))
+    .toUpperCase();
+  itineraryPanel.innerHTML = `
+    <article class="journey-card">
+      <div class="date-tile" aria-hidden="true"><strong>${escapeHtml(String(day).padStart(2, '0'))}</strong><span>${escapeHtml(monthLabel)}</span></div>
+      <div class="journey-copy">
+        <p class="journey-label">Validated itinerary · schema ${escapeHtml(itinerary.schemaVersion)}</p>
+        <h3 data-testid="trip-title">${escapeHtml(trip.title)}</h3>
+        ${trip.summary ? `<p class="trip-summary">${escapeHtml(trip.summary)}</p>` : ''}
+        <dl class="trip-meta">
+          <div><dt>Dates</dt><dd data-testid="trip-date-range">${escapeHtml(trip.startDate)} – ${escapeHtml(trip.endDate)}</dd></div>
+          <div><dt>Time zone</dt><dd data-testid="trip-time-zone">${escapeHtml(trip.timeZone)}</dd></div>
+        </dl>
+      </div>
+      <span class="card-arrow" aria-hidden="true">→</span>
+    </article>`;
+}
+
+function renderItineraryError(error) {
+  itineraryPanel.innerHTML = `
+    <article class="state-card state-error itinerary-state">
+      <span class="state-symbol" aria-hidden="true">!</span>
+      <div>
+        <h3>Could not load itinerary</h3>
+        <p role="alert" data-testid="itinerary-error">${escapeHtml(error.message)}</p>
+        <button class="retry-button itinerary-retry" type="button">Try itinerary again</button>
+      </div>
+    </article>`;
+  itineraryPanel.querySelector('.itinerary-retry').addEventListener('click', loadAndRenderItinerary);
+}
+
+async function loadAndRenderItinerary() {
+  itineraryPanel.innerHTML = `
+    <article class="state-card state-loading itinerary-state">
+      <span class="spinner" aria-hidden="true"></span>
+      <div><h3>Loading itinerary</h3><p role="status">Checking your trip data…</p></div>
+    </article>`;
+  try {
+    renderItinerary(await loadItinerary());
+  } catch (error) {
+    renderItineraryError(error);
+  }
+}
+
+loadAndRenderItinerary();

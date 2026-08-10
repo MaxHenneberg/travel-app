@@ -1,6 +1,18 @@
 # Travel app
 
-A deliberately small deployment baseline for TRAVEL-3. The production bundle is safe to host below a GitHub Pages repository path and includes automated Chromium and Android-profile smoke coverage.
+A mobile-first itinerary application. The production bundle is safe to host below a GitHub Pages repository path and includes automated Chromium and Android-profile coverage.
+
+## Itinerary data contract
+
+The bundled example is loaded independently from the application code and validated before any trip data is rendered:
+
+- Schema: `public/data/schemas/itinerary.v1.schema.json`
+- Example: `public/data/itineraries/example.v1.json`
+- Supported `schemaVersion`: `1.0.0`
+
+Version 1 requires trip identity, title, date range, time zone, and a days array. Optional summaries, day titles, and activity details may be omitted; the UI does not create replacement content. The schema is strict, so adding or changing public fields requires an intentional schema-version decision. Dates use ISO full-date values, while activity timestamps use RFC 3339 date-time values with an offset.
+
+Both assets are resolved through Vite's configured base path. Validation failures name the affected JSON path, unsupported versions receive a dedicated compatibility error, and invalid data is never partially committed to the page.
 
 ## Local development
 
@@ -29,7 +41,7 @@ Set **Settings → Pages → Source** to **GitHub Actions**. The Pages workflow 
 
 Jira validation and execution comments are enabled when these repository secrets exist: `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN`. Use a least-privilege Jira service account with browse-project and add-comment access. Invalid credentials and Jira API failures fail the reporting step without printing credentials.
 
-Traceability lives in `test-cases.json`; stable IDs must occur exactly once in the Playwright test titles. CI optionally confirms that every mapped Jira task exists, carries the `test-case` label, and relates to TRAVEL-3.
+Traceability lives in `test-cases.json`; stable IDs must occur exactly once across all Playwright specs. CI optionally confirms that every mapped Jira task exists, carries the `test-case` label, and relates to its mapped story.
 
 ### Jira execution evidence
 

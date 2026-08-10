@@ -1,5 +1,5 @@
 {
-  "stories": ["TRAVEL-3", "TRAVEL-4"],
+  "stories": ["TRAVEL-3", "TRAVEL-4", "TRAVEL-5"],
   "cases": [
     {
       "id": "TA-TRAVEL-3-01",
@@ -41,6 +41,27 @@
       "jiraKey": "TRAVEL-22",
       "story": "TRAVEL-4",
       "execution": ["pull-request"],
+      "profiles": ["chromium"]
+    },
+    {
+      "id": "TA-TRAVEL-5-01",
+      "jiraKey": "TRAVEL-24",
+      "story": "TRAVEL-5",
+      "execution": ["pull-request"],
+      "profiles": ["chromium", "android-chrome"]
+    },
+    {
+      "id": "TA-TRAVEL-5-02",
+      "jiraKey": "TRAVEL-25",
+      "story": "TRAVEL-5",
+      "execution": ["pull-request"],
+      "profiles": ["chromium"]
+    },
+    {
+      "id": "TA-TRAVEL-5-03",
+      "jiraKey": "TRAVEL-26",
+      "story": "TRAVEL-5",
+      "execution": ["pull-request", "post-deploy"],
       "profiles": ["chromium"]
     }
   ]
