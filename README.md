@@ -37,7 +37,9 @@ npm test
 
 ## GitHub setup
 
-Set **Settings → Pages → Source** to **GitHub Actions**. The Pages workflow deploys pushes to the repository's default branch, then runs the post-deployment Chromium and Android-profile smoke tests.
+Set **Settings → Pages → Source** to **Deploy from a branch**, using `gh-pages` and the repository root. Pushes to `main` update the root bundle while preserving active pull-request previews, then run the post-deployment Chromium and Android-profile smoke tests.
+
+Same-repository pull requests publish automatically below `/pr-preview/pr-<number>/`. The workflow verifies the exact built asset before adding or updating its preview comment, and removes the scoped preview directory when the pull request closes. Fork pull requests remain test-only because GitHub intentionally gives their workflow token read-only access. Preview publishing uses the built-in `GITHUB_TOKEN`; no additional secret is required.
 
 Jira validation and execution comments are enabled when these repository secrets exist: `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN`. Use a least-privilege Jira service account with browse-project and add-comment access. Invalid credentials and Jira API failures fail the reporting step without printing credentials.
 

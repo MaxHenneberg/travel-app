@@ -1,27 +1,26 @@
-name: Deploy GitHub Pages
+name: Publish main GitHub Pages site
 
 on:
   push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: pages-main
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
+      page_url: ${{ steps.urls.outputs.page_url }}
+      expected_asset: ${{ steps.build.outputs.expected_asset }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,24 +28,72 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Build for the repository path
+      - name: Build the main site
+        id: build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
-        run: npm run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+        shell: bash
+        run: |
+          npm run build
+          expected_asset=$(sed -n 's/.*src="\([^"]*assets\/[^"]*\.js\)".*/\1/p' dist/index.html | head -n 1)
+          [[ "$expected_asset" == "${BASE_PATH}"* ]]
+          echo "expected_asset=$expected_asset" >> "$GITHUB_OUTPUT"
+      - name: Check out the Pages branch
+        uses: actions/checkout@v4
         with:
-          path: dist
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+          ref: gh-pages
+          fetch-depth: 0
+          path: .pages-site
+      - name: Update the root bundle and preserve PR previews
+        shell: bash
+        run: |
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='pr-preview/' \
+            dist/ .pages-site/
+          touch .pages-site/.nojekyll
+      - name: Publish the Pages branch
+        working-directory: .pages-site
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add --all
+          if git diff --cached --quiet; then
+            echo 'The main Pages bundle is already current.'
+            exit 0
+          fi
+          git commit -m "Publish main site from ${GITHUB_SHA}"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin gh-pages
+            if ! git rebase origin/gh-pages; then
+              git rebase --abort || true
+              sleep $((attempt * 2))
+              continue
+            fi
+            if git push origin HEAD:gh-pages; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          echo 'Unable to publish the Pages branch after five attempts.' >&2
+          exit 1
+      - name: Request a Pages build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${GITHUB_REPOSITORY}/pages/builds"
+      - name: Expose the Pages URL
+        id: urls
+        shell: bash
+        run: echo "page_url=https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${{ github.event.repository.name }}/" >> "$GITHUB_OUTPUT"
 
   smoke:
-    needs: deploy
+    needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      PLAYWRIGHT_BASE_URL: ${{ needs.deploy.outputs.page_url }}
+      PLAYWRIGHT_BASE_URL: ${{ needs.publish.outputs.page_url }}
+      EXPECTED_ASSET: ${{ needs.publish.outputs.expected_asset }}
       JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
       JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
       JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
@@ -62,6 +109,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Wait for the published commit
+        shell: bash
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error "${PLAYWRIGHT_BASE_URL}?build=${GITHUB_SHA}" | grep --fixed-strings --quiet "$EXPECTED_ASSET"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'The exact main Pages bundle did not become available in time.' >&2
+          exit 1
       - name: Record smoke-test start time
         shell: bash
         run: echo "TEST_STARTED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
