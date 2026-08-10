@@ -1,293 +1,303 @@
 import './style.css';
-import { loadItinerary } from './itinerary/load.js';
+import { validateItinerary } from './lib/itinerary.js';
+import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
+import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
+import { createTripStore } from './lib/trip-store.js';
 
-const baseUrl = import.meta.env.BASE_URL;
-const markUrl = `${baseUrl}favicon.svg`;
+const app = document.querySelector('#app');
+const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
+const store = createTripStore();
+const state = { trip: null, dayId: null, error: null, notice: '', installPrompt: null, online: navigator.onLine };
 
-const icons = {
-  journey: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 19h14M7 16l3-9h4l3 9M8 13h8"/></svg>',
-  explore: '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m14.8 9.2-1.7 3.9-3.9 1.7 1.7-3.9 3.9-1.7Z"/></svg>',
-  saved: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6.5 4.5h11v15L12 16l-5.5 3.5v-15Z"/></svg>',
-};
+const escapeHtml = (value = '') => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
 
-document.querySelector('#app').innerHTML = `
-  <div class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="${baseUrl}" aria-label="Return to the welcome page">
-        <img src="${markUrl}" width="38" height="38" alt="" />
-        <span>Travel</span>
-      </a>
-      <button class="avatar" type="button" aria-label="Open profile">TR</button>
-    </header>
+const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
+const tripId = (trip) => firstValue(trip?.id, trip?.trip?.id);
+const revision = (trip) => Number(firstValue(trip?.revision, trip?.trip?.revision, 1));
+const tripTitle = (trip) => firstValue(trip?.title, trip?.trip?.title, 'Untitled trip');
+const tripDays = (trip) => firstValue(trip?.days, trip?.trip?.days, []);
 
-    <main class="main-content" id="main-content">
-      <section class="hero welcome" aria-labelledby="welcome-title">
-        <p class="eyebrow">Your journeys</p>
-        <h1 id="welcome-title">Hello World</h1>
-        <p class="lede">Keep the moments that matter close, wherever you are headed.</p>
-        <button class="primary-action" type="button" data-nav-target="Explore">
-          ${icons.explore}<span>Explore inspiration</span>
-        </button>
-      </section>
+function dateRange(trip) {
+  if (trip.dateRange) return trip.dateRange;
+  const start = trip.trip?.startDate;
+  const end = trip.trip?.endDate;
+  return start && end ? `${start} — ${end}` : '';
+}
 
-      <section class="content-section" aria-labelledby="up-next-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Ready when you are</p>
-            <h2 id="up-next-title">Up next</h2>
-          </div>
-          <button class="text-button" type="button" id="show-states" aria-expanded="false" aria-controls="state-showcase">View app states</button>
-        </div>
+function currentDay() {
+  const days = tripDays(state.trip);
+  return days.find((day) => day.id === state.dayId) ?? days[0] ?? null;
+}
 
-        <div id="itinerary-panel" data-testid="primary-content" aria-live="polite">
-          <article class="state-card state-loading itinerary-state">
-            <span class="spinner" aria-hidden="true"></span>
-            <div><h3>Loading itinerary</h3><p role="status">Checking your trip data…</p></div>
-          </article>
-        </div>
+function safeExternalUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : null;
+  } catch { return null; }
+}
 
-        <div class="state-showcase" id="state-showcase" hidden>
-          <article class="state-card state-loading" aria-labelledby="loading-title">
-            <span class="spinner" aria-hidden="true"></span>
-            <div><h3 id="loading-title">Loading journeys</h3><p role="status">Bringing your plans together…</p></div>
-          </article>
-          <article class="state-card state-empty" aria-labelledby="empty-title">
-            <span class="state-symbol" aria-hidden="true">＋</span>
-            <div><h3 id="empty-title">No journeys yet</h3><p>Your next adventure can start whenever you are ready.</p></div>
-          </article>
-          <article class="state-card state-error" aria-labelledby="error-title" id="error-state">
-            <span class="state-symbol" aria-hidden="true">!</span>
-            <div><h3 id="error-title">Could not load journeys</h3><p>Check your connection and try again.</p><button class="retry-button" type="button">Try again</button></div>
-          </article>
-        </div>
-      </section>
-    </main>
+function activityTime(activity) {
+  if (activity.time) return activity.time;
+  if (activity.startsAt) return new Date(activity.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return null;
+}
 
-    <nav class="bottom-nav" aria-label="Primary navigation">
-      ${Object.entries(icons).map(([name, icon], index) => `<button class="nav-item${index === 0 ? ' is-active' : ''}" type="button" data-label="${name[0].toUpperCase()}${name.slice(1)}" aria-current="${index === 0 ? 'page' : 'false'}">${icon}<span>${name[0].toUpperCase()}${name.slice(1)}</span></button>`).join('')}
-    </nav>
-  </div>
-`;
+function activityLocation(activity) {
+  const location = activity.location;
+  if (!location) return null;
+  if (typeof location === 'string') return location;
+  return { query: firstValue(location.name, location.address), ...location };
+}
 
-const navItems = [...document.querySelectorAll('.nav-item')];
+function placeUrl(activity) {
+  try {
+    if (activity.mapUrl) return safeExternalUrl(activity.mapUrl);
+    const place = activityLocation(activity);
+    return place ? buildGoogleMapsPlaceUrl(place) : null;
+  } catch { return null; }
+}
 
-function selectNavigation(label) {
-  for (const item of navItems) {
-    const active = item.dataset.label === label;
-    item.classList.toggle('is-active', active);
-    item.setAttribute('aria-current', active ? 'page' : 'false');
+function renderDetails(activity) {
+  const transport = activity.transport;
+  const links = (activity.links ?? [])
+    .map((link) => ({ label: link.label || 'Open link', url: safeExternalUrl(link.url) }))
+    .filter((link) => link.url);
+  const rows = [];
+  if (activity.description) rows.push(`<p>${escapeHtml(activity.description)}</p>`);
+  if (activity.notes) rows.push(`<p><span class="detail-label">Notes</span><br>${escapeHtml(activity.notes)}</p>`);
+  if (activity.reservation) rows.push(`<p><span class="detail-label">Reservation</span><br>${escapeHtml(activity.reservation)}</p>`);
+  if (activity.cost) rows.push(`<p><span class="detail-label">Cost</span><br>${escapeHtml(activity.cost)}</p>`);
+  if (transport) {
+    const parts = typeof transport === 'string'
+      ? transport
+      : [transport.mode, transport.line, transport.from && transport.to ? `${transport.from} → ${transport.to}` : '', transport.platform].filter(Boolean).join(' · ');
+    if (parts) rows.push(`<p><span class="detail-label">Transport</span><br>${escapeHtml(parts)}</p>`);
   }
-  document.querySelector('#welcome-title').textContent = label === 'Journey' ? 'Hello World' : label;
-}
-
-for (const item of navItems) item.addEventListener('click', () => selectNavigation(item.dataset.label));
-document.querySelector('[data-nav-target]').addEventListener('click', (event) => selectNavigation(event.currentTarget.dataset.navTarget));
-
-document.querySelector('#show-states').addEventListener('click', (event) => {
-  const showcase = document.querySelector('#state-showcase');
-  const expanded = event.currentTarget.getAttribute('aria-expanded') === 'true';
-  showcase.hidden = expanded;
-  event.currentTarget.setAttribute('aria-expanded', String(!expanded));
-  event.currentTarget.textContent = expanded ? 'View app states' : 'Hide app states';
-});
-
-document.querySelector('.retry-button').addEventListener('click', () => {
-  const state = document.querySelector('#error-state');
-  state.className = 'state-card state-recovered';
-  state.innerHTML = '<span class="state-symbol" aria-hidden="true">✓</span><div><h3>Journeys restored</h3><p role="status">You are back on track.</p></div>';
-});
-
-const itineraryPanel = document.querySelector('#itinerary-panel');
-const itinerarySectionTitle = document.querySelector('#up-next-title');
-let currentItinerary;
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
-function tripMetadataMarkup(itinerary) {
-  const { trip } = itinerary;
-  const [year, month, day] = trip.startDate.split('-').map(Number);
-  const monthLabel = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' })
-    .format(new Date(Date.UTC(year, month - 1, day)))
-    .toUpperCase();
-  return `
-    <article class="journey-card">
-      <div class="date-tile" aria-hidden="true"><strong>${escapeHtml(String(day).padStart(2, '0'))}</strong><span>${escapeHtml(monthLabel)}</span></div>
-      <div class="journey-copy">
-        <p class="journey-label">Validated itinerary · schema ${escapeHtml(itinerary.schemaVersion)}</p>
-        <h3 data-testid="trip-title">${escapeHtml(trip.title)}</h3>
-        ${trip.summary ? `<p class="trip-summary">${escapeHtml(trip.summary)}</p>` : ''}
-        <dl class="trip-meta">
-          <div><dt>Dates</dt><dd data-testid="trip-date-range">${escapeHtml(trip.startDate)} – ${escapeHtml(trip.endDate)}</dd></div>
-          <div><dt>Time zone</dt><dd data-testid="trip-time-zone">${escapeHtml(trip.timeZone)}</dd></div>
-        </dl>
-      </div>
-      <span class="card-arrow" aria-hidden="true">→</span>
-    </article>`;
-}
-
-function routeDayId() {
-  return new URL(globalThis.location.href).searchParams.get('day');
-}
-
-function routeUrl(dayId) {
-  const url = new URL(baseUrl, globalThis.location.origin);
-  if (dayId) url.searchParams.set('day', dayId);
-  return `${url.pathname}${url.search}`;
-}
-
-function dayHeading(day) {
-  return day.title || day.date;
+  if (links.length) rows.push(`<div class="external-links">${links.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)} ↗</a>`).join('')}</div>`);
+  return rows;
 }
 
 function renderActivity(activity) {
+  const time = activityTime(activity);
+  const details = renderDetails(activity);
+  const mapUrl = placeUrl(activity);
   return `
-    <li class="activity-card" data-testid="activity-item">
-      <div class="activity-heading">
-        <h4>${escapeHtml(activity.title)}</h4>
-        ${activity.category ? `<span class="activity-category">${escapeHtml(activity.category)}</span>` : ''}
+    <article class="activity" data-activity-id="${escapeHtml(activity.id)}">
+      <div class="activity-time">${time ? escapeHtml(time) : '<span class="unscheduled">Any time</span>'}</div>
+      <div class="activity-card">
+        <p class="activity-type">${escapeHtml(firstValue(activity.type, activity.category, 'Activity'))}</p>
+        <h3>${escapeHtml(activity.title)}</h3>
+        <div class="activity-summary">
+          ${activity.duration ? `<span>${escapeHtml(activity.duration)}</span>` : ''}
+          ${typeof activity.location === 'string' ? `<span>${escapeHtml(activity.location)}</span>` : activity.location?.name ? `<span>${escapeHtml(activity.location.name)}</span>` : ''}
+        </div>
+        ${details.length ? `<details><summary>Practical details</summary><div class="details-body">${details.join('')}</div></details>` : ''}
+        ${mapUrl ? `<a class="button map-action" data-map-link href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener noreferrer">Open in Google Maps ↗</a>` : ''}
       </div>
-      <dl class="activity-meta">
-        <div><dt>Starts</dt><dd><time datetime="${escapeHtml(activity.startsAt)}">${escapeHtml(activity.startsAt)}</time></dd></div>
-        ${activity.endsAt ? `<div><dt>Ends</dt><dd><time datetime="${escapeHtml(activity.endsAt)}">${escapeHtml(activity.endsAt)}</time></dd></div>` : ''}
-        ${activity.location ? `<div><dt>Location</dt><dd>${escapeHtml(activity.location)}</dd></div>` : ''}
-      </dl>
-      ${activity.notes ? `<p class="activity-notes">${escapeHtml(activity.notes)}</p>` : ''}
-    </li>`;
-}
-
-function renderDayNavigation(days, selectedId) {
-  return `
-    <nav class="day-navigation" aria-label="Itinerary days">
-      <ol>
-        ${days.map((day) => `
-          <li>
-            <a class="day-nav-link${day.id === selectedId ? ' is-selected' : ''}" href="${escapeHtml(routeUrl(day.id))}" data-route-day="${escapeHtml(day.id)}"${day.id === selectedId ? ' aria-current="page"' : ''}>
-              <span>${escapeHtml(day.date)}</span>
-              ${day.title ? `<strong>${escapeHtml(day.title)}</strong>` : ''}
-            </a>
-          </li>`).join('')}
-      </ol>
-    </nav>`;
-}
-
-function renderTripOverview(itinerary) {
-  const { trip } = itinerary;
-  itinerarySectionTitle.textContent = 'Trip overview';
-  itineraryPanel.innerHTML = `
-    ${tripMetadataMarkup(itinerary)}
-    ${trip.days.length ? `
-      <section class="itinerary-days" aria-labelledby="itinerary-days-title">
-        <div class="days-heading"><p class="eyebrow">In source order</p><h3 id="itinerary-days-title">Itinerary days</h3></div>
-        <ol class="day-list">
-          ${trip.days.map((day) => `
-            <li>
-              <a class="day-card" href="${escapeHtml(routeUrl(day.id))}" data-route-day="${escapeHtml(day.id)}">
-                <div class="day-card-heading">
-                  <time datetime="${escapeHtml(day.date)}">${escapeHtml(day.date)}</time>
-                  ${day.title ? `<h4>${escapeHtml(day.title)}</h4>` : ''}
-                </div>
-                ${day.activities.length ? `<ul class="activity-preview" aria-label="Activities">${day.activities.map((activity) => `<li>${escapeHtml(activity.title)}</li>`).join('')}</ul>` : '<p class="day-empty">No activities planned for this day.</p>'}
-                <span class="day-card-action">View day <span aria-hidden="true">→</span></span>
-              </a>
-            </li>`).join('')}
-        </ol>
-      </section>` : `
-      <article class="state-card state-empty itinerary-empty" data-testid="empty-itinerary">
-        <span class="state-symbol" aria-hidden="true">＋</span>
-        <div><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></div>
-      </article>`}`;
-  bindRouteLinks();
-}
-
-function renderDayDetail(itinerary, day) {
-  const { trip } = itinerary;
-  const index = trip.days.indexOf(day);
-  const previous = trip.days[index - 1];
-  const next = trip.days[index + 1];
-  itinerarySectionTitle.textContent = 'Day details';
-  itineraryPanel.innerHTML = `
-    <article class="day-detail" data-testid="day-detail">
-      <a class="overview-link" href="${escapeHtml(routeUrl())}" data-route-overview>← Trip overview</a>
-      ${renderDayNavigation(trip.days, day.id)}
-      <header class="day-detail-heading">
-        <p class="eyebrow">Day ${index + 1} of ${trip.days.length}</p>
-        <h3 data-testid="selected-day-title">${escapeHtml(dayHeading(day))}</h3>
-        <time data-testid="selected-day-date" datetime="${escapeHtml(day.date)}">${escapeHtml(day.date)}</time>
-      </header>
-      ${day.activities.length ? `<ol class="activity-list">${day.activities.map(renderActivity).join('')}</ol>` : `
-        <article class="state-card state-empty day-detail-empty" data-testid="empty-day">
-          <span class="state-symbol" aria-hidden="true">＋</span>
-          <div><h4>No activities planned</h4><p>No activities planned for this day.</p></div>
-        </article>`}
-      <nav class="day-pager" aria-label="Adjacent itinerary days">
-        ${previous ? `<a href="${escapeHtml(routeUrl(previous.id))}" data-route-day="${escapeHtml(previous.id)}">← ${escapeHtml(dayHeading(previous))}</a>` : '<span></span>'}
-        ${next ? `<a href="${escapeHtml(routeUrl(next.id))}" data-route-day="${escapeHtml(next.id)}">${escapeHtml(dayHeading(next))} →</a>` : '<span></span>'}
-      </nav>
     </article>`;
-  bindRouteLinks();
 }
 
-function renderCurrentRoute() {
-  if (!currentItinerary) return;
-  const selectedDay = currentItinerary.trip.days.find((day) => day.id === routeDayId());
-  if (selectedDay) renderDayDetail(currentItinerary, selectedDay);
-  else renderTripOverview(currentItinerary);
+function routeUrls(day) {
+  const stops = (day?.activities ?? []).map(activityLocation).filter(Boolean);
+  try { return buildGoogleMapsRouteUrls(stops, { travelMode: 'walking' }); } catch { return []; }
 }
 
-function navigate(dayId) {
-  globalThis.history.pushState({ dayId: dayId || null }, '', routeUrl(dayId));
-  renderCurrentRoute();
-  itinerarySectionTitle.setAttribute('tabindex', '-1');
-  itinerarySectionTitle.focus({ preventScroll: true });
+function canonicalHash(dayId = state.dayId) {
+  return buildHashRoute({ tripId: tripId(state.trip), revision: revision(state.trip), dayId });
 }
 
-function bindRouteLinks() {
-  for (const link of itineraryPanel.querySelectorAll('[data-route-day]')) {
-    link.addEventListener('click', (event) => {
-      event.preventDefault();
-      navigate(event.currentTarget.dataset.routeDay);
-    });
+function libraryMarkup(trips) {
+  if (!trips.length) return '<p class="sidebar-note">Imported trips stay on this device.</p>';
+  return `<div class="library-list">${trips.map((trip) => `
+    <div class="library-item">
+      <button type="button" data-open-trip="${escapeHtml(tripId(trip))}" data-open-revision="${revision(trip)}">${escapeHtml(tripTitle(trip))}</button>
+      <button class="icon-button" type="button" aria-label="Remove ${escapeHtml(tripTitle(trip))}" data-remove-trip="${escapeHtml(tripId(trip))}" data-remove-revision="${revision(trip)}">×</button>
+    </div>`).join('')}</div>`;
+}
+
+async function render() {
+  const savedTrips = await store.listTrips();
+  const online = state.online;
+  if (state.error || !state.trip) {
+    app.innerHTML = `
+      <div class="app-shell">
+        ${topbar(online)}
+        <main class="layout" style="margin-top: 2rem; grid-template-columns: 1fr">
+          <section class="${state.error ? 'error-card' : 'empty-card'}">
+            <p class="eyebrow">${state.error ? 'Unable to open trip' : 'Your pocket itinerary'}</p>
+            <h2>${state.error ? escapeHtml(state.error.title) : 'Bring a trip with you'}</h2>
+            <p>${state.error ? escapeHtml(state.error.message) : 'Import a versioned itinerary JSON file. It stays on this device and remains available when the signal disappears.'}</p>
+            <label class="button primary import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>
+            ${savedTrips.length ? `<div class="library"><h3>Saved trips</h3>${libraryMarkup(savedTrips)}</div>` : ''}
+          </section>
+        </main>
+        ${noticeMarkup()}
+      </div>`;
+    bindCommon();
+    return;
   }
-  itineraryPanel.querySelector('[data-route-overview]')?.addEventListener('click', (event) => {
-    event.preventDefault();
-    navigate();
+
+  const day = currentDay();
+  const days = tripDays(state.trip);
+  const routes = routeUrls(day);
+  app.innerHTML = `
+    <div class="app-shell">
+      ${topbar(online)}
+      <header class="hero">
+        <div class="hero-content">
+          <p class="eyebrow">${escapeHtml(firstValue(state.trip.destination, state.trip.trip?.summary, 'Saved itinerary'))}</p>
+          <h1>${escapeHtml(tripTitle(state.trip))}</h1>
+          <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
+          <div class="hero-actions">
+            <button class="primary" id="share-trip" type="button">Share this day</button>
+            <button class="ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button>
+          </div>
+        </div>
+      </header>
+      <main class="layout">
+        <aside class="sidebar" aria-label="Itinerary navigation">
+          <h2>Your days</h2><p class="sidebar-note">Everything here is saved for offline use.</p>
+          <nav class="day-nav">${days.map((item, index) => `<button class="day-button ${item.id === day?.id ? 'active' : ''}" type="button" data-day-id="${escapeHtml(item.id)}"><small>Day ${index + 1} · ${escapeHtml(item.date)}</small><span>${escapeHtml(item.title || `Day ${index + 1}`)}</span></button>`).join('')}</nav>
+          <div class="library"><h2>Trip library</h2>${libraryMarkup(savedTrips)}<label class="button subtle import-label">Import another trip<input id="trip-import" type="file" accept="application/json,.json"></label></div>
+        </aside>
+        <section class="content" aria-live="polite">
+          ${day ? `<article class="day-panel">
+            <header class="day-heading"><p class="eyebrow">${escapeHtml(day.date)}</p><h2>${escapeHtml(day.title || 'Today')}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
+              ${routes.length ? `<div class="day-toolbar">${routes.map((url, index) => `<a class="button subtle" data-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${routes.length > 1 ? `Route part ${index + 1}` : 'Open day route'} ↗</a>`).join('')}</div>` : ''}
+            </header>
+            ${(day.activities ?? []).length ? `<div class="timeline">${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day"><strong>No fixed plans yet</strong>This day is open. Add an activity in the itinerary file when you are ready.</div>'}
+          </article>` : '<section class="empty-card"><h2>No itinerary days</h2><p>This trip is valid, but it does not contain any days yet.</p></section>'}
+        </section>
+      </main>
+      ${noticeMarkup()}
+    </div>`;
+  bindCommon();
+}
+
+function topbar(online) {
+  return `<div class="topbar"><div class="brand"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></div><div id="network-status" class="network ${online ? '' : 'offline'}">${online ? 'Online · synced' : 'Offline · saved copy'}</div></div>`;
+}
+
+function noticeMarkup() { return state.notice ? `<div class="notice" role="status">${escapeHtml(state.notice)}</div>` : ''; }
+
+function showNotice(message) {
+  state.notice = message;
+  render();
+  window.setTimeout(() => { if (state.notice === message) { state.notice = ''; render(); } }, 3200);
+}
+
+async function importFile(file) {
+  try {
+    const candidate = validateItinerary(JSON.parse(await file.text()));
+    await store.saveTrip(candidate);
+    state.trip = candidate;
+    state.dayId = tripDays(candidate)[0]?.id ?? null;
+    state.error = null;
+    window.location.hash = canonicalHash();
+    showNotice('Trip imported and saved on this device.');
+  } catch (error) {
+    showNotice(error?.message || 'That file is not a supported itinerary.');
+  }
+}
+
+async function shareCurrent() {
+  const url = new URL(canonicalHash(), window.location.href.split('#')[0]).href;
+  const data = { title: tripTitle(state.trip), text: `Open ${tripTitle(state.trip)} in Trailbook`, url };
+  try {
+    if (navigator.share) { await navigator.share(data); return; }
+    await navigator.clipboard.writeText(url);
+    showNotice('Link copied to clipboard.');
+  } catch (error) {
+    if (error?.name !== 'AbortError') showNotice('Could not share automatically. Copy the address from your browser.');
+  }
+}
+
+function bindCommon() {
+  document.querySelector('#trip-import')?.addEventListener('change', (event) => {
+    const [file] = event.target.files;
+    if (file) importFile(file);
+  });
+  document.querySelectorAll('[data-day-id]').forEach((button) => button.addEventListener('click', () => {
+    state.dayId = button.dataset.dayId;
+    window.location.hash = canonicalHash(state.dayId);
+    render();
+  }));
+  document.querySelectorAll('[data-open-trip]').forEach((button) => button.addEventListener('click', () => {
+    window.location.hash = buildHashRoute({ tripId: button.dataset.openTrip, revision: Number(button.dataset.openRevision) });
+  }));
+  document.querySelectorAll('[data-remove-trip]').forEach((button) => button.addEventListener('click', async () => {
+    if (!window.confirm(`Remove this saved trip from this device?`)) return;
+    await store.deleteTrip(button.dataset.removeTrip, Number(button.dataset.removeRevision));
+    if (tripId(state.trip) === button.dataset.removeTrip) { state.trip = null; state.dayId = null; window.location.hash = ''; }
+    showNotice('Trip removed.');
+  }));
+  document.querySelectorAll('[data-map-link]').forEach((link) => link.addEventListener('click', (event) => {
+    if (!state.online) { event.preventDefault(); showNotice('Maps needs a connection. Your itinerary is still available offline.'); }
+  }));
+  document.querySelector('#share-trip')?.addEventListener('click', shareCurrent);
+  document.querySelector('#install-app')?.addEventListener('click', async () => {
+    await state.installPrompt?.prompt();
+    state.installPrompt = null;
+    render();
   });
 }
 
-function renderItineraryError(error) {
-  itineraryPanel.innerHTML = `
-    <article class="state-card state-error itinerary-state">
-      <span class="state-symbol" aria-hidden="true">!</span>
-      <div>
-        <h3>Could not load itinerary</h3>
-        <p role="alert" data-testid="itinerary-error">${escapeHtml(error.message)}</p>
-        <button class="retry-button itinerary-retry" type="button">Try itinerary again</button>
-      </div>
-    </article>`;
-  itineraryPanel.querySelector('.itinerary-retry').addEventListener('click', loadAndRenderItinerary);
-}
-
-async function loadAndRenderItinerary() {
-  itineraryPanel.innerHTML = `
-    <article class="state-card state-loading itinerary-state">
-      <span class="spinner" aria-hidden="true"></span>
-      <div><h3>Loading itinerary</h3><p role="status">Checking your trip data…</p></div>
-    </article>`;
-  try {
-    currentItinerary = await loadItinerary();
-    renderCurrentRoute();
-  } catch (error) {
-    currentItinerary = undefined;
-    renderItineraryError(error);
+async function loadRoute() {
+  const { route, error } = tryParseHashRoute(window.location.hash);
+  if (error) {
+    state.trip = null;
+    state.error = { title: 'This link is not safe to open', message: error.message };
+    await render();
+    return;
   }
+  const target = route ?? { tripId: 'weekend-lisbon', revision: 1, dayId: null };
+  let candidate = null;
+  let networkError = null;
+  try {
+    const assetUrl = new URL(`data/itineraries/${target.tripId}/v${target.revision}.json`, baseUrl);
+    const response = await fetch(assetUrl);
+    if (!response.ok) throw new Error(response.status === 404 ? 'This itinerary revision has not been published.' : `The itinerary could not be loaded (${response.status}).`);
+    candidate = validateItinerary(await response.json());
+    if (tripId(candidate) !== target.tripId || revision(candidate) !== target.revision) throw new Error('The published itinerary does not match the requested immutable revision.');
+    await store.saveTrip(candidate);
+  } catch (error) {
+    networkError = error;
+    candidate = await store.getTrip(target.tripId, target.revision);
+  }
+  if (!candidate) {
+    state.trip = null;
+    state.error = {
+      title: state.online ? 'Itinerary unavailable' : 'Connect once to download this trip',
+      message: state.online ? networkError?.message || 'Check the link and try again.' : 'This itinerary is not saved on this device yet. Reopen this link after one successful online visit.',
+    };
+    await render();
+    return;
+  }
+  const days = tripDays(candidate);
+  if (target.dayId && !days.some((day) => day.id === target.dayId)) {
+    state.trip = null;
+    state.error = { title: 'Day not found', message: 'The trip loaded, but this day does not exist in the requested revision.' };
+    await render();
+    return;
+  }
+  state.trip = candidate;
+  state.dayId = target.dayId ?? days[0]?.id ?? null;
+  state.error = null;
+  await render();
 }
 
-globalThis.addEventListener('popstate', renderCurrentRoute);
-loadAndRenderItinerary();
+window.addEventListener('hashchange', loadRoute);
+window.addEventListener('online', () => { state.online = true; render(); });
+window.addEventListener('offline', () => { state.online = false; render(); });
+window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); state.installPrompt = event; render(); });
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register(new URL('sw.js', baseUrl), { scope: import.meta.env.BASE_URL }).catch(() => {});
+}
+
+loadRoute();

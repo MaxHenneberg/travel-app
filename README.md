@@ -1,18 +1,6 @@
-# Travel app
+# Trailbook travel app
 
-A mobile-first itinerary application. The production bundle is safe to host below a GitHub Pages repository path and includes automated Chromium and Android-profile coverage.
-
-## Itinerary data contract
-
-The bundled example is loaded independently from the application code and validated before any trip data is rendered:
-
-- Schema: `public/data/schemas/itinerary.v1.schema.json`
-- Example: `public/data/itineraries/example.v1.json`
-- Supported `schemaVersion`: `1.0.0`
-
-Version 1 requires trip identity, title, date range, time zone, and a days array. Optional summaries, day titles, and activity details may be omitted; the UI does not create replacement content. The schema is strict, so adding or changing public fields requires an intentional schema-version decision. Dates use ISO full-date values, while activity timestamps use RFC 3339 date-time values with an offset.
-
-Both assets are resolved through Vite's configured base path. Validation failures name the affected JSON path, unsupported versions receive a dedicated compatibility error, and invalid data is never partially committed to the page.
+An offline-first, installable travel itinerary for Android and the web. Trailbook renders versioned JSON itineraries, keeps downloaded and imported trips on-device, opens ordered places and routes in Google Maps, and shares immutable GitHub Pages-safe deep links.
 
 ## Local development
 
@@ -35,20 +23,25 @@ npx playwright install chromium
 npm test
 ```
 
-## GitHub setup
+## Published itineraries
 
-Set **Settings → Pages → Source** to **Deploy from a branch**, using `gh-pages` and the repository root. Pushes to `main` update the root bundle while preserving active pull-request previews, then run the post-deployment Chromium and Android-profile smoke tests.
+Immutable revisions live at `public/data/itineraries/{itineraryId}/v{revision}.json` and open through hash routes that survive GitHub Pages refreshes:
 
-Same-repository pull requests publish automatically below `/pr-preview/pr-<number>/`. The workflow verifies the exact built asset before adding or updating its preview comment, and removes the scoped preview directory when the pull request closes. Fork pull requests remain test-only because GitHub intentionally gives their workflow token read-only access. Preview publishing uses the built-in `GITHUB_TOKEN`; no additional secret is required.
+```text
+#/trip/{itineraryId}/v/{revision}
+#/trip/{itineraryId}/v/{revision}/day/{dayId}
+```
 
-Jira validation and execution comments are enabled when these repository secrets exist: `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN`. Use a least-privilege Jira service account with browse-project and add-comment access. Invalid credentials and Jira API failures fail the reporting step without printing credentials.
+Route identifiers are restricted to safe path characters. Every fetched or locally imported document is validated before it is displayed or stored. The current schema supports ordered days and activities with local times, durations, descriptions, multiline notes, reservations, costs, transport details, locations, and safe external links.
 
-Traceability lives in `test-cases.json`; stable IDs must occur exactly once across all Playwright specs. CI optionally confirms that every mapped Jira task exists, carries the `test-case` label, and relates to its mapped story.
+## Offline and installation
 
-### Jira execution evidence
+The repository-scoped web manifest and service worker make the deployed app installable and cache the application shell plus successfully loaded same-origin resources. Itineraries are retained by immutable revision in IndexedDB, with graceful local fallbacks. A trip must be opened online once before its deep link can be reopened offline.
 
-The automated reporter reads the retained Playwright JUnit file and fails closed when an ID is missing, duplicated, unknown, assigned to the wrong execution environment, or run on an unexpected browser profile. It posts one comment per executed stable ID using standard Jira Cloud REST endpoints. Each comment contains linked commit, pull request or branch, workflow run, retained artifacts, the actual browser profiles, outcome, environment, timestamps, and retry number.
+## GitHub and Jira reporting
 
-The idempotency key is the GitHub run ID, run attempt, and stable test ID. Re-running the reporter in one attempt updates the existing comment; a new attempt creates distinct evidence. Cancelled or superseded runs are not published. Pull requests from forks run without Jira secrets and skip the reporting step.
+Set **Settings → Pages → Source** to **GitHub Actions**. The Pages workflow deploys pushes to the default branch and runs post-deployment Chromium and Android-profile smoke tests.
 
-Environment names remain explicit: `pull-request production preview` and `github-pages` are automated. Release workflows should use a `release` execution mapping and a release-specific `TEST_ENVIRONMENT`. Physical Android evidence is manual, must be added by a human or a dedicated manual workflow, and is rejected by the automated reporter when `TEST_EVIDENCE_SOURCE=manual`.
+Jira validation and execution comments are enabled when `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` repository secrets exist. Traceability lives in `test-cases.json`; stable IDs must occur exactly once in the Playwright titles. CI optionally confirms that each mapped Jira task exists, has the `test-case` label, and relates to its Story.
+
+The reporter publishes one idempotent comment per automated stable ID with the result, commit, branch or pull request, workflow run, artifacts, browser profiles, environment, timestamps, and retry. Physical Android cases remain manual and are never reported as automated.
