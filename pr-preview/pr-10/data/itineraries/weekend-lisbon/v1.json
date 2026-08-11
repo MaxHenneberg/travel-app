@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "id": "weekend-lisbon",
+  "revision": 1,
+  "title": "A long weekend in Lisbon",
+  "destination": "Lisbon, Portugal",
+  "dateRange": "18–20 September 2026",
+  "days": [
+    {
+      "id": "arrival",
+      "date": "Friday · 18 September",
+      "title": "Arrival & Alfama",
+      "summary": "Settle in, then follow the evening light uphill.",
+      "activities": [
+        {
+          "id": "check-in",
+          "time": "15:30",
+          "duration": "45 min",
+          "title": "Check in at Casa do Miradouro",
+          "type": "Stay",
+          "description": "Leave luggage and pick up the apartment keys.",
+          "notes": "Door code is in the reservation app.\nAsk about the quiet route to the viewpoint.",
+          "reservation": "Confirmation LIS-4821",
+          "cost": "€184 prepaid",
+          "location": { "name": "Miradouro de Santa Luzia", "lat": 38.7116, "lng": -9.1302 },
+          "links": [{ "label": "Reservation details", "url": "https://example.com/reservation/LIS-4821" }]
+        },
+        {
+          "id": "tram",
+          "time": "17:00",
+          "duration": "25 min",
+          "title": "Ride tram 28 to Graça",
+          "type": "Transport",
+          "transport": { "mode": "Tram", "line": "28E", "from": "Sé", "to": "Graça", "platform": "Street stop" },
+          "location": { "name": "Graça, Lisbon", "lat": 38.7174, "lng": -9.1307 }
+        },
+        {
+          "id": "dinner",
+          "title": "Choose dinner in Alfama",
+          "type": "Flexible",
+          "description": "Pick somewhere lively on the walk back; no reservation needed.",
+          "location": { "name": "Alfama, Lisbon", "lat": 38.7112, "lng": -9.1294 }
+        }
+      ]
+    },
+    {
+      "id": "river-day",
+      "date": "Saturday · 19 September",
+      "title": "Belém & the river",
+      "summary": "Tiles, gardens, and a slow afternoon by the Tagus.",
+      "activities": [
+        {
+          "id": "belem",
+          "time": "09:30",
+          "duration": "2 h",
+          "title": "Jerónimos Monastery",
+          "type": "Visit",
+          "description": "Arrive near opening; the cloister ticket is timed.",
+          "location": { "name": "Jerónimos Monastery", "placeId": "ChIJ98mRe6Q0GQ0R8sj4G6B0yPQ" }
+        },
+        {
+          "id": "lunch",
+          "time": "12:30",
+          "title": "Picnic in Jardim de Belém",
+          "type": "Food",
+          "location": { "name": "Jardim de Belém", "lat": 38.6977, "lng": -9.2061 }
+        },
+        {
+          "id": "maat",
+          "time": "15:00",
+          "duration": "90 min",
+          "title": "MAAT riverside galleries",
+          "type": "Museum",
+          "location": { "name": "MAAT Lisbon", "lat": 38.6959, "lng": -9.1947 }
+        }
+      ]
+    },
+    {
+      "id": "departure",
+      "date": "Sunday · 20 September",
+      "title": "A gentle goodbye",
+      "summary": "Keep the morning open and leave with time to spare.",
+      "activities": []
+    }
+  ]
+}
