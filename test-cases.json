@@ -1,89 +1,35 @@
 {
-  "stories": ["TRAVEL-3", "TRAVEL-4", "TRAVEL-5", "TRAVEL-6"],
+  "stories": ["TRAVEL-3", "TRAVEL-4", "TRAVEL-5", "TRAVEL-6", "TRAVEL-7", "TRAVEL-8", "TRAVEL-9", "TRAVEL-10", "TRAVEL-11", "TRAVEL-50"],
   "cases": [
-    {
-      "id": "TA-TRAVEL-3-01",
-      "jiraKey": "TRAVEL-18",
-      "story": "TRAVEL-3",
-      "execution": ["pull-request"],
-      "profiles": ["chromium", "android-chrome"]
-    },
-    {
-      "id": "TA-TRAVEL-3-02",
-      "jiraKey": "TRAVEL-19",
-      "story": "TRAVEL-3",
-      "execution": ["post-deploy"],
-      "profiles": ["chromium"]
-    },
-    {
-      "id": "TA-TRAVEL-3-03",
-      "jiraKey": "TRAVEL-20",
-      "story": "TRAVEL-3",
-      "execution": ["post-deploy"],
-      "profiles": ["android-chrome"]
-    },
-    {
-      "id": "TA-TRAVEL-4-01",
-      "jiraKey": "TRAVEL-23",
-      "story": "TRAVEL-4",
-      "execution": ["pull-request"],
-      "profiles": ["android-chrome"]
-    },
-    {
-      "id": "TA-TRAVEL-4-02",
-      "jiraKey": "TRAVEL-21",
-      "story": "TRAVEL-4",
-      "execution": ["pull-request"],
-      "profiles": ["android-chrome"]
-    },
-    {
-      "id": "TA-TRAVEL-4-03",
-      "jiraKey": "TRAVEL-22",
-      "story": "TRAVEL-4",
-      "execution": ["pull-request"],
-      "profiles": ["chromium"]
-    },
-    {
-      "id": "TA-TRAVEL-5-01",
-      "jiraKey": "TRAVEL-24",
-      "story": "TRAVEL-5",
-      "execution": ["pull-request"],
-      "profiles": ["chromium", "android-chrome"]
-    },
-    {
-      "id": "TA-TRAVEL-5-02",
-      "jiraKey": "TRAVEL-25",
-      "story": "TRAVEL-5",
-      "execution": ["pull-request"],
-      "profiles": ["chromium"]
-    },
-    {
-      "id": "TA-TRAVEL-5-03",
-      "jiraKey": "TRAVEL-26",
-      "story": "TRAVEL-5",
-      "execution": ["pull-request", "post-deploy"],
-      "profiles": ["chromium"]
-    },
-    {
-      "id": "TA-TRAVEL-6-01",
-      "jiraKey": "TRAVEL-27",
-      "story": "TRAVEL-6",
-      "execution": ["pull-request"],
-      "profiles": ["android-chrome"]
-    },
-    {
-      "id": "TA-TRAVEL-6-02",
-      "jiraKey": "TRAVEL-28",
-      "story": "TRAVEL-6",
-      "execution": ["pull-request"],
-      "profiles": ["android-chrome"]
-    },
-    {
-      "id": "TA-TRAVEL-6-03",
-      "jiraKey": "TRAVEL-29",
-      "story": "TRAVEL-6",
-      "execution": ["pull-request"],
-      "profiles": ["chromium"]
-    }
+    { "id": "TA-TRAVEL-3-01", "jiraKey": "TRAVEL-18", "story": "TRAVEL-3", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] },
+    { "id": "TA-TRAVEL-3-02", "jiraKey": "TRAVEL-19", "story": "TRAVEL-3", "execution": ["post-deploy"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-3-03", "jiraKey": "TRAVEL-20", "story": "TRAVEL-3", "execution": ["post-deploy"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-4-01", "jiraKey": "TRAVEL-23", "story": "TRAVEL-4", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-4-02", "jiraKey": "TRAVEL-21", "story": "TRAVEL-4", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-4-03", "jiraKey": "TRAVEL-22", "story": "TRAVEL-4", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-5-01", "jiraKey": "TRAVEL-24", "story": "TRAVEL-5", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] },
+    { "id": "TA-TRAVEL-5-02", "jiraKey": "TRAVEL-25", "story": "TRAVEL-5", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-5-03", "jiraKey": "TRAVEL-26", "story": "TRAVEL-5", "execution": ["pull-request", "post-deploy"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-6-01", "jiraKey": "TRAVEL-27", "story": "TRAVEL-6", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-6-02", "jiraKey": "TRAVEL-28", "story": "TRAVEL-6", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-6-03", "jiraKey": "TRAVEL-29", "story": "TRAVEL-6", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-7-01", "jiraKey": "TRAVEL-30", "story": "TRAVEL-7", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-7-02", "jiraKey": "TRAVEL-31", "story": "TRAVEL-7", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-7-03", "jiraKey": "TRAVEL-34", "story": "TRAVEL-7", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-8-01", "jiraKey": "TRAVEL-33", "story": "TRAVEL-8", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-8-02", "jiraKey": "TRAVEL-32", "story": "TRAVEL-8", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-8-03", "jiraKey": "TRAVEL-35", "story": "TRAVEL-8", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-9-01", "jiraKey": "TRAVEL-36", "story": "TRAVEL-9", "execution": ["pull-request", "post-deploy"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-9-03", "jiraKey": "TRAVEL-38", "story": "TRAVEL-9", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-10-01", "jiraKey": "TRAVEL-39", "story": "TRAVEL-10", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-10-02", "jiraKey": "TRAVEL-42", "story": "TRAVEL-10", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-10-03", "jiraKey": "TRAVEL-40", "story": "TRAVEL-10", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-11-01", "jiraKey": "TRAVEL-43", "story": "TRAVEL-11", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-11-02", "jiraKey": "TRAVEL-44", "story": "TRAVEL-11", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-11-03", "jiraKey": "TRAVEL-45", "story": "TRAVEL-11", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-50-01", "jiraKey": "TRAVEL-51", "story": "TRAVEL-50", "execution": ["pull-request", "post-deploy"], "profiles": ["chromium", "android-chrome"] },
+    { "id": "TA-TRAVEL-50-02", "jiraKey": "TRAVEL-52", "story": "TRAVEL-50", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] },
+    { "id": "TA-TRAVEL-50-03", "jiraKey": "TRAVEL-54", "story": "TRAVEL-50", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-50-04", "jiraKey": "TRAVEL-53", "story": "TRAVEL-50", "execution": ["pull-request"], "profiles": ["android-chrome"] }
   ]
 }
