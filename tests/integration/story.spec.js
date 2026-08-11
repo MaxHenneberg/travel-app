@@ -2,7 +2,14 @@ import { expect, test } from '@playwright/test';
 
 const repositoryPath = new URL(process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173/travel-app/').pathname;
 
-test('TA-TRAVEL-3-01 @pr renders Trailbook from the production build under a repository subpath', async ({ page }) => {
+function captureErrors(page) {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(`page: ${error.message}`));
+  page.on('requestfailed', (request) => errors.push(`network: ${request.url()} (${request.failure()?.errorText})`));
+  return errors;
+}
+
+test('TA-TRAVEL-3-01 @pr renders Hello World from the production build under a repository subpath', async ({ page }) => {
   const localAssets = [];
   page.on('response', (response) => {
     if (['script', 'stylesheet', 'image'].includes(response.request().resourceType())) {
@@ -11,8 +18,8 @@ test('TA-TRAVEL-3-01 @pr renders Trailbook from the production build under a rep
   });
 
   await page.goto('./');
-  await expect(page.getByRole('heading', { name: 'A long weekend in Lisbon' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Arrival & Alfama' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hello World' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Return to the welcome page' })).toHaveAttribute('href', repositoryPath);
   expect(localAssets.length).toBeGreaterThanOrEqual(3);
 
   for (const response of localAssets) {
@@ -29,20 +36,21 @@ test('TA-TRAVEL-3-02 @post-deploy opens and refreshes the deployed GitHub Pages 
   test.skip(testInfo.project.name !== 'chromium', 'Chromium post-deploy coverage');
   const first = await page.goto('./');
   expect(first?.ok()).toBeTruthy();
-  await expect(page.getByRole('heading', { name: 'A long weekend in Lisbon' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hello World' })).toBeVisible();
 
   const refreshed = await page.reload({ waitUntil: 'networkidle' });
   expect(refreshed?.ok()).toBeTruthy();
-  await expect(page.getByRole('heading', { name: 'A long weekend in Lisbon' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hello World' })).toBeVisible();
 });
 
 test('TA-TRAVEL-3-03 @post-deploy smoke-tests the deployed page on an Android viewport', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'android-chrome', 'Android profile coverage');
+  const errors = captureErrors(page);
   const response = await page.goto('./', { waitUntil: 'networkidle' });
   expect(response?.ok()).toBeTruthy();
-  await expect(page.getByRole('heading', { name: 'A long weekend in Lisbon' })).toBeVisible();
-  await expect(page.locator('.day-panel')).toBeInViewport();
-  await expect(page.locator('aside[aria-label="Itinerary navigation"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hello World' })).toBeVisible();
+  await expect(page.locator('.welcome')).toBeInViewport();
+  expect(errors).toEqual([]);
 });
 
 test('TA-TRAVEL-4-01 @pr uses the application shell at the minimum supported width', async ({ page }, testInfo) => {

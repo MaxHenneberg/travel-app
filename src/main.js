@@ -3,6 +3,7 @@ import { validateItinerary } from './lib/itinerary.js';
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
+import { mountLegacyApp } from './legacy-app.js';
 
 const app = document.querySelector('#app');
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
@@ -291,13 +292,15 @@ async function loadRoute() {
   await render();
 }
 
-window.addEventListener('hashchange', loadRoute);
-window.addEventListener('online', () => { state.online = true; render(); });
-window.addEventListener('offline', () => { state.online = false; render(); });
-window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); state.installPrompt = event; render(); });
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register(new URL('sw.js', baseUrl), { scope: import.meta.env.BASE_URL }).catch(() => {});
+if (window.location.hash) {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register(new URL('sw.js', baseUrl), { scope: import.meta.env.BASE_URL }).catch(() => {});
+  }
+  window.addEventListener('hashchange', loadRoute);
+  window.addEventListener('online', () => { state.online = true; render(); });
+  window.addEventListener('offline', () => { state.online = false; render(); });
+  window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); state.installPrompt = event; render(); });
+  loadRoute();
+} else {
+  mountLegacyApp(app, { baseUrl: import.meta.env.BASE_URL });
 }
-
-loadRoute();
