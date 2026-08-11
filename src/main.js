@@ -1,5 +1,5 @@
 import './style.css';
-import { validateItinerary } from './lib/itinerary.js';
+import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './lib/itinerary.js';
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
@@ -9,7 +9,7 @@ const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
-  installPrompt: null, online: navigator.onLine,
+  importError: null, installPrompt: null, online: navigator.onLine,
 };
 
 const escapeHtml = (value = '') => String(value)
@@ -131,6 +131,11 @@ function tripCard(trip, { removable = true } = {}) {
   </article>`;
 }
 
+function schemaExportLink(className = 'button ghost') {
+  const url = new URL('data/schemas/itinerary.v1.schema.json', baseUrl).href;
+  return `<a class="${className}" data-schema-export href="${escapeHtml(url)}" download="trailbook-itinerary-schema-v1.json">Export JSON schema</a>`;
+}
+
 function topbar() {
   return `<header class="topbar">
     <a class="brand" href="${escapeHtml(baseUrl.href)}" aria-label="All trips"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></a>
@@ -140,15 +145,25 @@ function topbar() {
 
 function noticeMarkup() { return state.notice ? `<div class="notice" role="status">${escapeHtml(state.notice)}</div>` : ''; }
 
+function importErrorMarkup() {
+  if (!state.importError) return '';
+  return `<section class="import-error" role="status" data-testid="itinerary-error">
+    <div><p class="eyebrow">Import needs attention</p><h2>JSON could not be imported</h2><p>Copy this repair request and send it to an LLM together with your original JSON.</p></div>
+    <textarea id="import-error-message" readonly aria-label="Copyable itinerary repair message">${escapeHtml(state.importError.prompt)}</textarea>
+    <div class="import-error-actions"><button class="button primary" id="copy-import-error" type="button">Copy error for an LLM</button>${schemaExportLink('button subtle')}</div>
+  </section>`;
+}
+
 async function renderCollection(savedTrips) {
   const trips = uniqueTrips(savedTrips);
   app.innerHTML = `<div class="app-shell">
     ${topbar()}
     <header class="collection-hero">
       <div><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
-      <div class="hero-actions"><label class="button primary import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label><button class="button ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button></div>
+      <div class="hero-actions"><label class="button primary import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>${schemaExportLink()}<button class="button ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
+      ${importErrorMarkup()}
       <div class="collection-heading"><div><p class="eyebrow">Saved and published</p><h2>Trip collection</h2></div><span>${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}</span></div>
       ${trips.length ? `<div class="trip-grid">${trips.map((trip) => tripCard(trip)).join('')}</div>` : `<section class="empty-card"><h2>No trips on this device</h2><p>${state.online ? 'Import an itinerary to get started.' : 'Connect once to download a published trip, or import an itinerary file already on this device.'}</p></section>`}
     </main>
@@ -173,6 +188,7 @@ function navigation(days, day) {
     <h2>Days</h2>
     <nav class="day-nav" aria-label="Itinerary days">${days.map((item, index) => `<a class="day-button ${item.id === day?.id ? 'active' : ''}" href="${escapeHtml(tripHash(state.trip, item.id))}" ${item.id === day?.id ? 'aria-current="page"' : ''}><small>Day ${index + 1} · ${escapeHtml(item.date)}</small><span>${escapeHtml(item.title || item.date)}</span></a>`).join('')}</nav>
     <label class="button subtle import-label">Import another trip<input id="trip-import" type="file" accept="application/json,.json"></label>
+    ${schemaExportLink('button subtle')}
   </aside>`;
 }
 
@@ -191,6 +207,7 @@ async function renderTrip(savedTrips) {
     <main class="layout" data-testid="primary-content">
       ${navigation(days, day)}
       <section class="content" aria-live="polite">
+        ${importErrorMarkup()}
         ${day ? `<article class="day-panel">
           <header class="day-heading"><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">← Trip overview</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 data-testid="selected-day-title">${escapeHtml(day.title || day.date)}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
             ${routes.length ? `<div class="day-toolbar">${routes.map((url, index) => `<a class="button subtle" data-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${routes.length > 1 ? `Route part ${index + 1}` : 'Open day route'} ↗</a>`).join('')}</div>` : ''}
@@ -224,15 +241,24 @@ function showNotice(message) {
   window.setTimeout(() => { if (state.notice === message) { state.notice = ''; render(); } }, 3200);
 }
 
+function repairPrompt(error, fileName) {
+  const issues = error?.errors?.length ? error.errors : [{ path: '$', code: error?.code || 'invalid_json', message: error?.message || 'The file is invalid.', hint: 'Correct the JSON and try again.' }];
+  const details = issues.map(({ path, code, message, hint }) => `- ${path || '$'} [${code || 'invalid'}]: ${message}${hint ? ` Repair: ${hint}` : ''}`).join('\n');
+  return `Fix my Trailbook itinerary JSON so it matches the currently supported schema.\n\nReturn only the complete corrected JSON. Do not wrap it in Markdown and do not omit unchanged content. Preserve IDs, ordering, and user-provided details unless a validation error requires a change. Do not invent bookings, prices, or personal data.\n\nSupported schema version: ${ITINERARY_SCHEMA_VERSION}\nFile: ${fileName || 'itinerary.json'}\n\nValidation errors:\n${details}\n\nI will provide the original JSON with this message.`;
+}
+
 async function importFile(file) {
   try {
-    const candidate = validateItinerary(JSON.parse(await file.text()));
+    const candidate = parseItinerary(await file.text());
     await store.saveTrip(candidate);
+    state.importError = null;
     state.notice = 'Trip imported and saved on this device.';
     window.location.hash = tripHash(candidate);
     if (window.location.hash === tripHash(candidate)) await loadRoute();
   } catch (error) {
-    showNotice(error?.message || 'That file is not a supported itinerary.');
+    state.importError = { prompt: repairPrompt(error, file.name) };
+    state.notice = '';
+    await render();
   }
 }
 
@@ -264,6 +290,23 @@ function bindCommon() {
     if (!state.online) { event.preventDefault(); showNotice('Maps needs a connection. Your itinerary is still available offline.'); }
   }));
   document.querySelector('#share-trip')?.addEventListener('click', shareCurrent);
+  document.querySelector('#copy-import-error')?.addEventListener('click', async () => {
+    const message = state.importError?.prompt;
+    if (!message) return;
+    try {
+      await navigator.clipboard.writeText(message);
+      showNotice('Repair message copied.');
+    } catch {
+      const textarea = document.querySelector('#import-error-message');
+      textarea?.focus(); textarea?.select();
+      const copied = document.execCommand?.('copy');
+      if (copied) showNotice('Repair message copied.');
+      else {
+        const button = document.querySelector('#copy-import-error');
+        if (button) button.textContent = 'Selected — copy manually';
+      }
+    }
+  });
   document.querySelector('#install-app')?.addEventListener('click', async () => {
     await state.installPrompt?.prompt(); state.installPrompt = null; render();
   });
