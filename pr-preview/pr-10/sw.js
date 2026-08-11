@@ -7,6 +7,7 @@ const SHELL = [
   asset('favicon.svg'),
   asset('icons/travel-192.png'),
   asset('icons/travel-512.png'),
+  asset('data/itineraries/index.json'),
 ];
 
 self.addEventListener('install', (event) => {
