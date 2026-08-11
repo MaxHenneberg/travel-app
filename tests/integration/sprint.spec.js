@@ -238,3 +238,96 @@ test('TA-TRAVEL-50-04 @pr shares the canonical revision and day URL on Android',
   const shared = await page.evaluate(() => JSON.parse(sessionStorage.getItem('shared')));
   expect(shared.url).toContain('#/trip/weekend-lisbon/v/1/day/river-day');
 });
+
+test('TA-TRAVEL-60-01 @pr exports the supported schema from every import surface at Android width', async ({ page }) => {
+  await page.goto('./');
+  await expect(page.getByRole('heading', { name: 'Your trips' })).toBeVisible();
+
+  const collectionExport = page.getByRole('link', { name: 'Export JSON schema' });
+  const collectionHref = await collectionExport.getAttribute('href');
+  expect(new URL(collectionHref).pathname).toBe(`${repositoryPath}data/schemas/itinerary.v1.schema.json`);
+  await expect(collectionExport).toHaveAttribute('download', 'trailbook-itinerary-schema-v1.json');
+
+  const downloadPromise = page.waitForEvent('download');
+  await collectionExport.click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('trailbook-itinerary-schema-v1.json');
+
+  const schemaResponse = await page.request.get(collectionHref);
+  expect(schemaResponse.ok()).toBeTruthy();
+  const schema = await schemaResponse.json();
+  expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
+  expect(schema.properties.schemaVersion.const).toBe('1.0.0');
+
+  await openSample(page, '');
+  const itineraryExport = page.getByRole('link', { name: 'Export JSON schema' });
+  await expect(itineraryExport).toHaveAttribute('href', collectionHref);
+  await expect(itineraryExport).toHaveAttribute('download', 'trailbook-itinerary-schema-v1.json');
+
+  const viewportFits = await page.evaluate(() => ({
+    document: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    main: document.querySelector('[data-testid="primary-content"]').scrollWidth
+      <= document.querySelector('[data-testid="primary-content"]').clientWidth,
+  }));
+  expect(viewportFits).toEqual({ document: true, main: true });
+});
+
+test('TA-TRAVEL-60-02 @pr keeps invalid-import feedback complete, private, copyable, and repairable', async ({ page }, testInfo) => {
+  onlyProject(testInfo, 'chromium');
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (value) => { sessionStorage.setItem('copied-repair', value); } },
+    });
+  });
+  await openSample(page, '');
+
+  await page.locator('#trip-import').setInputFiles({
+    name: 'syntax-broken.json', mimeType: 'application/json', buffer: Buffer.from('{"schemaVersion":'),
+  });
+  const error = page.getByTestId('itinerary-error');
+  await expect(error).toBeVisible();
+  await expect(page.getByLabel('Copyable itinerary repair message')).toContainText('$ [invalid_json]');
+  await page.waitForTimeout(3300);
+  await expect(error).toBeVisible();
+
+  const privateValue = 'PRIVATE-ITINERARY-CONTENT-MUST-NOT-BE-COPIED';
+  const invalidTrip = {
+    schemaVersion: '1.0.0',
+    privatePayload: privateValue,
+    trip: { id: '', title: '', startDate: 'not-a-date', endDate: '2026-01-01', timeZone: '', days: 'not-an-array' },
+  };
+  await page.locator('#trip-import').setInputFiles({
+    name: 'schema-broken.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(invalidTrip)),
+  });
+
+  const repairMessage = page.getByLabel('Copyable itinerary repair message');
+  await expect(repairMessage).toContainText('Supported schema version: 1.0.0');
+  await expect(repairMessage).toContainText('Return only the complete corrected JSON');
+  for (const issue of ['/privatePayload [unknown_property]', '/trip/id [required_string]', '/trip/title [required_string]', '/trip/startDate [invalid_date]', '/trip/timeZone [required_string]', '/trip/days [invalid_type]']) {
+    await expect(repairMessage).toContainText(issue);
+  }
+  await expect(repairMessage).toContainText('Repair:');
+  await expect(repairMessage).not.toContainText(privateValue);
+
+  const expectedCopy = await repairMessage.inputValue();
+  await page.getByRole('button', { name: 'Copy error for an LLM' }).click();
+  expect(await page.evaluate(() => sessionStorage.getItem('copied-repair'))).toBe(expectedCopy);
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('denied'); } } });
+    document.execCommand = () => false;
+  });
+  await page.getByRole('button', { name: 'Copy error for an LLM' }).click();
+  await expect(page.getByRole('button', { name: /Selected.*copy manually/ })).toBeVisible();
+
+  await page.locator('#trip-import').setInputFiles({
+    name: 'city-break.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(richTrip)),
+  });
+  await expect(page.getByRole('heading', { name: 'City break' })).toBeVisible();
+  await expect(page.getByTestId('itinerary-error')).toHaveCount(0);
+  await page.getByRole('link', { name: 'All trips' }).first().click();
+  await expect(page.locator('[data-trip-id="weekend-lisbon"]')).toBeVisible();
+  await expect(page.locator('[data-trip-id="city-break"]')).toBeVisible();
+  await expect(page.locator('.trip-card')).toHaveCount(2);
+});
