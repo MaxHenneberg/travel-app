@@ -14,7 +14,8 @@ function tripId(value) {
 }
 
 function tripRevision(value) {
-  return Number.isSafeInteger(value?.revision) && value.revision > 0 ? value.revision : null;
+  const candidate = value?.revision ?? value?.trip?.revision ?? 1;
+  return Number.isSafeInteger(candidate) && candidate > 0 ? candidate : null;
 }
 
 function storageKey(value) {

@@ -19,7 +19,7 @@
 html { scroll-behavior: smooth; }
 body { min-width: 320px; min-height: 100vh; margin: 0; background: #f2efe7; }
 button, input { font: inherit; }
-button, .button { min-height: 44px; }
+button, .button { min-height: 48px; }
 button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible {
   outline: 3px solid #e9a84a;
   outline-offset: 3px;
@@ -80,13 +80,14 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .button.subtle, button.subtle { color: var(--forest); border: 1px solid var(--line); background: var(--paper); }
 .button.danger, button.danger { color: var(--danger); border: 1px solid #efd2cf; background: #fff8f7; }
 
-.layout { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr); gap: clamp(1.2rem, 4vw, 3rem); width: min(100% - 2rem, 76rem); margin: -4.5rem auto 4rem; }
-.sidebar, .day-panel, .empty-card, .error-card { border: 1px solid rgb(24 49 44 / 10%); border-radius: 1.4rem; background: var(--paper); box-shadow: 0 1.2rem 4rem rgb(22 58 51 / 9%); }
-.sidebar { align-self: start; padding: 1.25rem; }
+.layout { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr); gap: clamp(1.2rem, 4vw, 3rem); width: min(calc(100% - 2rem), 76rem); margin: -4.5rem auto 4rem; }
+.layout > * { min-width: 0; }
+.sidebar, .day-panel, .trip-overview, .trip-card, .empty-card, .error-card { border: 1px solid rgb(24 49 44 / 10%); border-radius: 1.4rem; background: var(--paper); box-shadow: 0 1.2rem 4rem rgb(22 58 51 / 9%); }
+.sidebar { align-self: start; min-width: 0; max-width: 100%; padding: 1.25rem; }
 .sidebar h2 { margin: 0 0 .25rem; font-size: 1.05rem; }
 .sidebar-note { margin: 0 0 1rem; color: var(--muted); font-size: .85rem; }
-.day-nav { display: grid; gap: .55rem; }
-.day-button { display: grid; justify-items: start; width: 100%; padding: .85rem; color: var(--ink); text-align: left; border-radius: .85rem; background: transparent; }
+.day-nav { display: grid; min-width: 0; max-width: 100%; gap: .55rem; }
+.day-button { display: grid; justify-items: start; width: 100%; min-height: 48px; padding: .85rem; color: var(--ink); text-align: left; text-decoration: none; border-radius: .85rem; background: transparent; }
 .day-button:hover, .day-button.active { background: #edf2ee; }
 .day-button.active { box-shadow: inset 3px 0 var(--amber); }
 .day-button small { color: var(--muted); font-weight: 500; }
@@ -98,6 +99,40 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .import-label { margin-top: .9rem; }
 .import-label input { position: absolute; width: 1px; height: 1px; clip: rect(0 0 0 0); }
 
+.collection-hero { display: flex; align-items: end; justify-content: space-between; gap: 2rem; padding: clamp(3rem, 9vw, 6rem) max(1rem, calc((100% - 76rem) / 2)) 6rem; color: var(--cream); background: var(--deep); }
+.collection-hero > div:first-child { min-width: 0; max-width: 52rem; }
+.collection-hero h1 { overflow-wrap: anywhere; }
+.collection-hero > div > p:last-child { max-width: 42rem; color: #c9d6d1; }
+.collection-main { position: relative; width: min(calc(100% - 2rem), 76rem); margin: -3rem auto 4rem; }
+.collection-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; padding: 1.4rem 1.5rem; margin-bottom: 1rem; border: 1px solid rgb(24 49 44 / 10%); border-radius: 1.2rem; background: var(--paper); box-shadow: 0 1.2rem 4rem rgb(22 58 51 / 9%); }
+.collection-heading h2 { margin: 0; font-size: clamp(1.5rem, 4vw, 2.2rem); }
+.collection-heading > span { color: var(--muted); white-space: nowrap; }
+.trip-grid { display: grid; gap: 1rem; }
+.trip-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.5rem; align-items: center; min-width: 0; padding: clamp(1.25rem, 4vw, 2rem); }
+.trip-card-copy { min-width: 0; }
+.trip-card h2 { overflow-wrap: anywhere; margin: 0; font-size: clamp(1.45rem, 4vw, 2.2rem); letter-spacing: -.035em; }
+.trip-card p { overflow-wrap: anywhere; color: var(--muted); }
+.trip-card-meta { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: 1rem; color: var(--muted); font-size: .88rem; }
+.trip-card-actions { display: grid; gap: .6rem; min-width: 12rem; }
+.single-column { width: min(calc(100% - 2rem), 60rem); margin: 2rem auto; }
+.error-card h1 { max-width: none; color: var(--danger); font-size: clamp(2rem, 6vw, 3.5rem); }
+.error-library { display: grid; gap: 1rem; padding-top: 1.5rem; margin-top: 1.5rem; border-top: 1px solid var(--line); }
+.error-library .trip-card { box-shadow: none; }
+.overview-link, .trip-overview-link { display: inline-flex; min-height: 44px; align-items: center; color: var(--forest); font-weight: 750; text-decoration: none; }
+.trip-overview-link { width: 100%; padding: .65rem .8rem; margin: .35rem 0 1rem; border-radius: .75rem; }
+.trip-overview-link.active { background: #edf2ee; box-shadow: inset 3px 0 var(--amber); }
+.trip-overview { overflow: hidden; min-width: 0; }
+.trip-overview > header { padding: clamp(1.3rem, 4vw, 2.2rem); border-bottom: 1px solid var(--line); }
+.trip-overview > header h2 { margin: 0; font-size: clamp(1.8rem, 5vw, 3rem); letter-spacing: -.045em; }
+.trip-overview > header p:last-child { max-width: 48rem; color: var(--muted); }
+.overview-day-list { display: grid; gap: 1rem; padding: clamp(1rem, 4vw, 2rem); margin: 0; list-style: none; }
+.overview-day-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, .8fr) auto; gap: 1rem; align-items: center; min-width: 0; padding: 1.1rem; color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 1rem; background: #fff; }
+.overview-day-card h3 { overflow-wrap: anywhere; margin: .3rem 0; }
+.overview-day-card p { color: var(--muted); }
+.overview-day-card time { color: var(--muted); font-size: .82rem; font-weight: 700; }
+.overview-day-card .activity-preview { display: grid; gap: .35rem; padding: 0; margin: 0; color: var(--muted); font-size: .86rem; list-style: none; }
+.day-card-action { color: var(--forest); font-weight: 800; white-space: nowrap; }
+
 .content { min-width: 0; }
 .day-panel { overflow: hidden; }
 .day-heading { padding: clamp(1.3rem, 4vw, 2.2rem); border-bottom: 1px solid var(--line); }
@@ -105,8 +140,8 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .day-heading p { margin: .5rem 0 0; color: var(--muted); }
 .day-toolbar { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.2rem; }
 .timeline { padding: clamp(1rem, 4vw, 2rem); }
-.activity { position: relative; display: grid; grid-template-columns: 5.2rem minmax(0, 1fr); gap: 1rem; padding-bottom: 1.25rem; }
-.activity:not(:last-child)::before { position: absolute; top: 2rem; bottom: -.2rem; left: 5.68rem; width: 1px; content: ''; background: var(--line); }
+.activity { position: relative; display: grid; grid-template-columns: 5.2rem minmax(0, 1fr); gap: 1.75rem; padding-bottom: 1.25rem; }
+.activity:not(:last-child)::before { position: absolute; top: 2rem; bottom: -.2rem; left: 6.08rem; width: 1px; content: ''; background: var(--line); }
 .activity-time { padding-top: 1rem; color: var(--muted); font-size: .85rem; font-weight: 700; text-align: right; }
 .activity-time .unscheduled { font-weight: 500; }
 .activity-card { position: relative; min-width: 0; padding: 1rem 1rem 1.1rem; border: 1px solid var(--line); border-radius: 1rem; background: #fff; }
@@ -134,37 +169,21 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .sr-only { position: absolute; overflow: hidden; width: 1px; height: 1px; padding: 0; margin: -1px; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 [hidden] { display: none !important; }
 
-.legacy-shell { padding-bottom: 5.5rem; }
-.main-content { width: min(100% - 2rem, 76rem); margin: 0 auto; }
-.legacy-welcome { padding: 3rem 0 2rem; }
-.legacy-welcome h1 { color: var(--forest); }
-.primary-action, .text-button { min-width: 48px; min-height: 48px; }
-.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.content-section { min-width: 0; padding-bottom: 2rem; }
-.state-showcase, .day-list, .activity-preview, .day-navigation ol { display: grid; gap: 1rem; padding: 0; list-style: none; }
-.state-showcase { margin-top: 1rem; }
-.state-card, .journey-card, .itinerary-days, .day-detail { overflow-wrap: anywhere; padding: 1.25rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--paper); }
-.journey-card dl { display: flex; flex-wrap: wrap; gap: 1rem 2rem; }
-.journey-card dt { color: var(--muted); font-size: .8rem; }
-.journey-card dd { margin: .2rem 0 0; }
-.day-card { display: block; min-width: 0; padding: 1rem; color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: .8rem; background: var(--paper); }
-.day-card h4 { margin: .3rem 0; }
-.day-navigation { overflow-x: auto; }
-.day-navigation ol { display: flex; }
-.day-navigation a { display: grid; min-width: 10rem; padding: .75rem; color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: .7rem; }
-.bottom-nav { position: fixed; z-index: 15; right: 0; bottom: 0; left: 0; display: flex; justify-content: center; gap: .25rem; padding: .4rem; background: var(--deep); }
-.nav-item { display: grid; min-width: 72px; min-height: 48px; padding: .35rem .65rem; font-size: .75rem; }
-.nav-item[aria-current="page"] { color: var(--deep); background: var(--amber); }
-
 @media (max-width: 760px) {
+  .collection-hero { display: block; padding-bottom: 5.5rem; }
+  .collection-hero .hero-actions { margin-top: 1.5rem; }
+  .collection-heading { align-items: center; }
+  .trip-card { grid-template-columns: 1fr; }
+  .trip-card-actions { min-width: 0; }
   .hero { padding-bottom: 6.5rem; }
   .layout { grid-template-columns: 1fr; margin-top: -3.5rem; }
-  .sidebar { position: static; }
-  .day-nav { display: flex; overflow-x: auto; padding-bottom: .3rem; scroll-snap-type: x mandatory; }
+  .sidebar { position: static; overflow: hidden; }
+  .day-nav { display: flex; overflow-x: auto; max-width: 100%; padding-bottom: .3rem; scroll-snap-type: x mandatory; }
   .day-button { flex: 0 0 11rem; scroll-snap-align: start; }
-  .activity { grid-template-columns: 3.5rem minmax(0, 1fr); gap: .75rem; }
-  .activity:not(:last-child)::before { left: 3.85rem; }
-  .activity-card::before { left: -1.17rem; }
+  .overview-day-card { grid-template-columns: 1fr; }
+  .day-card-action { white-space: normal; }
+  .activity { grid-template-columns: 3.5rem minmax(0, 1fr); gap: 1.75rem; }
+  .activity:not(:last-child)::before { left: 4.38rem; }
   .activity-time { font-size: .76rem; }
 }
 
