@@ -6,6 +6,7 @@ const isRemote = Boolean(process.env.PLAYWRIGHT_BASE_URL);
 
 export default defineConfig({
   testDir: './tests/integration',
+  globalSetup: './tests/global-setup.mjs',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -24,11 +25,4 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'android-chrome', use: { ...devices['Pixel 7'] } },
   ],
-  webServer: isRemote
-    ? undefined
-    : {
-        command: 'npm run preview -- --port 4173 --strictPort',
-        url: baseURL,
-        reuseExistingServer: !process.env.CI,
-      },
 });
