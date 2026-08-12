@@ -1,4 +1,4 @@
-const CACHE = 'trailbook-v1';
+const CACHE = 'trailbook-v2';
 const scope = new URL(self.registration.scope);
 const asset = (path) => new URL(path, scope).href;
 const SHELL = [

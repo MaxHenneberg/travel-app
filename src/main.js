@@ -4,14 +4,16 @@ import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
 import { createAttachmentStore } from './lib/attachment-store.js';
+import { applyTheme, readStoredTheme, themes } from './lib/theme.js';
 
 const app = document.querySelector('#app');
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
 const attachmentStore = createAttachmentStore();
+const initialTheme = applyTheme(readStoredTheme());
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
-  importError: null, installPrompt: null, online: navigator.onLine, attachments: new Map(),
+  importError: null, installPrompt: null, online: navigator.onLine, theme: initialTheme.id, attachments: new Map(),
   attachmentUsage: { bytes: 0, count: 0, limitBytes: attachmentStore.limits.totalBytes }, attachmentError: '', focusAfterRender: '',
 };
 
@@ -191,7 +193,11 @@ function schemaExportLink(className = 'button ghost') {
 function topbar() {
   return `<header class="topbar">
     <a class="brand" href="${escapeHtml(baseUrl.href)}" aria-label="All trips"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></a>
-    <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
+    <div class="topbar-actions">
+      <label class="theme-control" for="theme-selector"><span>Theme</span><select id="theme-selector" aria-label="Theme" aria-describedby="active-theme-status">${themes.map((theme) => `<option value="${theme.id}" ${theme.id === state.theme ? 'selected' : ''}>${theme.name}</option>`).join('')}</select></label>
+      <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
+    </div>
+    <span id="active-theme-status" class="sr-only" role="status" aria-live="polite">Active theme: ${escapeHtml(themes.find(({ id }) => id === state.theme)?.name)}</span>
   </header>`;
 }
 
@@ -391,6 +397,12 @@ async function addAttachments(input) {
 }
 
 function bindCommon() {
+  document.querySelector('#theme-selector')?.addEventListener('change', (event) => {
+    const active = applyTheme(event.currentTarget.value);
+    state.theme = active.id;
+    const status = document.querySelector('#active-theme-status');
+    if (status) status.textContent = `Active theme: ${active.name}`;
+  });
   document.querySelectorAll('#trip-import').forEach((input) => input.addEventListener('change', (event) => {
     const [file] = event.target.files;
     if (file) importFile(file);
