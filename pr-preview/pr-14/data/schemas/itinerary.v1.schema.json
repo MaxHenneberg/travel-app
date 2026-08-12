@@ -56,15 +56,17 @@
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["url", "alt"],
+      "required": ["alt"],
+      "oneOf": [
+        { "properties": { "url": {} }, "required": ["url"] },
+        { "properties": { "provider": {}, "commonsFile": {} }, "required": ["provider", "commonsFile"] },
+        { "properties": { "provider": {}, "commonsQuery": {} }, "required": ["provider", "commonsQuery"] }
+      ],
       "properties": {
-        "url": {
-          "type": "string",
-          "anyOf": [
-            { "format": "uri", "pattern": "^https://" },
-            { "pattern": "^images/stops/[A-Za-z0-9][A-Za-z0-9._/-]*$" }
-          ]
-        },
+        "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "provider": { "const": "wikimediaCommons" },
+        "commonsFile": { "type": "string", "minLength": 1 },
+        "commonsQuery": { "type": "string", "minLength": 1 },
         "alt": { "type": "string" },
         "caption": { "type": "string", "minLength": 1 },
         "credit": { "type": "string", "minLength": 1 },
