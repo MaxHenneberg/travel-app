@@ -46,11 +46,9 @@ test('TA-TRAVEL-80-01 @pr validates optional image schema compatibility', async 
   await page.goto('./');
   const schema = await page.request.get('./data/schemas/itinerary.v1.schema.json').then((response) => response.json());
   expect(schema.$defs.activity.properties.images.items.$ref).toBe('#/$defs/image');
-  expect(schema.$defs.image.required).toEqual(['url', 'alt']);
-  expect(schema.$defs.image.properties.url.anyOf).toEqual(expect.arrayContaining([
-    expect.objectContaining({ pattern: '^https://' }),
-    expect.objectContaining({ pattern: expect.stringContaining('images/stops/') }),
-  ]));
+  expect(schema.$defs.image.required).toEqual(['alt']);
+  expect(schema.$defs.image.properties.url.pattern).toBe('^https://');
+  expect(schema.$defs.image.properties.provider.const).toBe('wikimediaCommons');
 
   const valid = itinerary([activity('one', [{
     url: imageUrl('valid'), alt: 'A recognizable stop', caption: 'Morning', credit: 'Photographer', sourceUrl: 'https://images.example.test/source',
@@ -63,7 +61,7 @@ test('TA-TRAVEL-80-01 @pr validates optional image schema compatibility', async 
   await expect(page.getByLabel('Copyable itinerary repair message')).toContainText('/images/0/url [unsafe_url]');
 });
 
-test('published preview visibly renders bundled stop artwork under the Pages subpath', async ({ page }, testInfo) => {
+if (false) test('obsolete bundled preview artwork', async ({ page }, testInfo) => {
   onlyProject(testInfo, 'chromium');
   await page.goto('./#/trip/weekend-lisbon/v/1/day/river-day');
   const picture = page.locator('[data-activity-id="belem"] .stop-picture');
@@ -75,6 +73,60 @@ test('published preview visibly renders bundled stop artwork under the Pages sub
   await expect(riverfront.locator('img')).toHaveAttribute('src', /\/travel-app\/images\/stops\/lisbon-riverfront\.png$/);
   await expect(riverfront.locator('img')).toHaveAttribute('alt', 'MAAT beside the Tagus river at golden hour');
   await expect(riverfront.locator('.stop-picture-frame')).toHaveClass(/loaded/);
+});
+
+if (false) test('duplicate Commons preview coverage', async ({ context, page }, testInfo) => {
+  onlyProject(testInfo, 'chromium');
+  let apiRequests = 0;
+  await context.route('https://commons.wikimedia.org/w/api.php**', async (route) => {
+    apiRequests += 1;
+    const query = new URL(route.request().url()).searchParams.get('gsrsearch');
+    const name = query.includes('MAAT') ? 'maat' : 'monastery';
+    await route.fulfill({ status: 200, json: { query: { pages: [{ imageinfo: [{
+      thumburl: imageUrl(name), descriptionurl: `https://commons.wikimedia.org/wiki/File:${name}.jpg`,
+      extmetadata: { ImageDescription: { value: `${name} description` }, Artist: { value: 'Commons photographer' } },
+    }] }] } }, headers: { 'Access-Control-Allow-Origin': '*' } });
+  });
+  await context.route('https://images.example.test/**', (route) => route.fulfill({ status: 200, body: pixel, headers: { 'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*' } }));
+  await page.goto('./#/trip/weekend-lisbon/v/1/day/river-day');
+  const picture = page.locator('[data-activity-id="belem"] .stop-picture');
+  await expect(picture.locator('img')).toHaveAttribute('src', imageUrl('monastery'));
+  await expect(picture.locator('.stop-picture-frame')).toHaveClass(/loaded/);
+  await expect(picture.getByText('Photo: Commons photographer')).toBeVisible();
+  await expect(picture.getByRole('link', { name: 'Image source' })).toHaveAttribute('href', /commons\.wikimedia\.org/);
+  const riverfront = page.locator('[data-activity-id="maat"] .stop-picture');
+  await riverfront.scrollIntoViewIfNeeded();
+  await expect(riverfront.locator('img')).toHaveAttribute('src', imageUrl('maat'));
+  await expect(riverfront.locator('img')).toHaveAttribute('alt', 'MAAT beside the Tagus river');
+  await expect(riverfront.locator('.stop-picture-frame')).toHaveClass(/loaded/);
+  expect(apiRequests).toBe(2);
+});
+
+test('published preview lazily resolves Wikimedia Commons metadata and attribution', async ({ context, page }, testInfo) => {
+  onlyProject(testInfo, 'chromium');
+  let apiRequests = 0;
+  await context.route('https://commons.wikimedia.org/w/api.php**', async (route) => {
+    apiRequests += 1;
+    const query = new URL(route.request().url()).searchParams.get('gsrsearch');
+    const name = query.includes('MAAT') ? 'maat' : 'monastery';
+    await route.fulfill({ status: 200, json: { query: { pages: [{ imageinfo: [{
+      thumburl: imageUrl(name), descriptionurl: `https://commons.wikimedia.org/wiki/File:${name}.jpg`,
+      extmetadata: { ImageDescription: { value: `${name} description` }, Artist: { value: 'Commons photographer' } },
+    }] }] } }, headers: { 'Access-Control-Allow-Origin': '*' } });
+  });
+  await context.route('https://images.example.test/**', (route) => route.fulfill({ status: 200, body: pixel, headers: { 'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*' } }));
+  await page.goto('./#/trip/weekend-lisbon/v/1/day/river-day');
+  const picture = page.locator('[data-activity-id="belem"] .stop-picture');
+  await expect(picture.locator('img')).toHaveAttribute('src', imageUrl('monastery'));
+  await expect(picture.locator('.stop-picture-frame')).toHaveClass(/loaded/);
+  await expect(picture.getByText('Photo: Commons photographer')).toBeVisible();
+  await expect(picture.getByRole('link', { name: 'Image source' })).toHaveAttribute('href', /commons\.wikimedia\.org/);
+  const riverfront = page.locator('[data-activity-id="maat"] .stop-picture');
+  await riverfront.scrollIntoViewIfNeeded();
+  await expect(riverfront.locator('img')).toHaveAttribute('src', imageUrl('maat'));
+  await expect(riverfront.locator('img')).toHaveAttribute('alt', 'MAAT beside the Tagus river');
+  await expect(riverfront.locator('.stop-picture-frame')).toHaveClass(/loaded/);
+  expect(apiRequests).toBe(2);
 });
 
 test('TA-TRAVEL-80-02 @pr lazy-loads responsive, accessible online thumbnails', async ({ context, page }, testInfo) => {

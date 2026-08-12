@@ -3,7 +3,7 @@ import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './l
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
-import { imageIsCached, validStopImages } from './lib/stop-images.js';
+import { imageIsCached, resolveStopImage, validStopImages } from './lib/stop-images.js';
 
 const app = document.querySelector('#app');
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
@@ -86,10 +86,10 @@ function renderActivity(activity) {
   const time = activityTime(activity);
   const details = renderDetails(activity);
   const mapUrl = placeUrl(activity);
-  const [image] = validStopImages(activity.images, baseUrl);
-  const imageMarkup = image ? `<figure class="stop-picture" data-stop-picture data-image-url="${escapeHtml(image.url)}" data-image-alt="${escapeHtml(image.alt)}">
+  const [image] = validStopImages(activity.images);
+  const imageMarkup = image ? `<figure class="stop-picture" data-stop-picture data-image-url="${escapeHtml(image.url || '')}" data-image-api-url="${escapeHtml(image.apiUrl || '')}" data-image-alt="${escapeHtml(image.alt)}">
     <div class="stop-picture-frame" aria-busy="true"><span class="stop-picture-placeholder">Picture unavailable</span></div>
-    ${(image.caption || image.credit || image.sourceUrl) ? `<figcaption>${image.caption ? `<span>${escapeHtml(image.caption)}</span>` : ''}${image.credit ? `<span>Photo: ${escapeHtml(image.credit)}</span>` : ''}${image.sourceUrl ? `<a href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noopener noreferrer">Image source</a>` : ''}</figcaption>` : ''}
+    <figcaption ${image.caption || image.credit || image.sourceUrl ? '' : 'hidden'}>${image.caption ? `<span data-image-caption>${escapeHtml(image.caption)}</span>` : '<span data-image-caption></span>'}${image.credit ? `<span data-image-credit>Photo: ${escapeHtml(image.credit)}</span>` : '<span data-image-credit></span>'}${image.sourceUrl ? `<a data-image-source href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noopener noreferrer">Image source</a>` : '<a data-image-source target="_blank" rel="noopener noreferrer" hidden>Image source</a>'}</figcaption>
   </figure>` : '';
   return `<article class="activity" data-activity-id="${escapeHtml(activity.id)}" data-testid="activity-item">
     <div class="activity-time">${time ? `<time${activity.startsAt ? ` datetime="${escapeHtml(activity.startsAt)}"` : ''}>${escapeHtml(time)}</time>` : '<span class="unscheduled">Any time</span>'}</div>
@@ -334,12 +334,26 @@ function bindCommon() {
 async function hydrateStopPictures() {
   const saveData = navigator.connection?.saveData === true;
   await Promise.all([...document.querySelectorAll('[data-stop-picture]')].map(async (figure) => {
-    const url = figure.dataset.imageUrl;
+    let descriptor = {
+      url: figure.dataset.imageUrl || null,
+      apiUrl: figure.dataset.imageApiUrl || null,
+      alt: figure.dataset.imageAlt || '',
+    };
+    descriptor = await resolveStopImage(descriptor, { online: state.online });
+    const url = descriptor?.url;
     const cached = await imageIsCached(url);
-    if ((!state.online && !cached) || (saveData && !cached)) {
+    if (!descriptor || (!state.online && !cached) || (saveData && !cached)) {
       figure.querySelector('.stop-picture-frame')?.setAttribute('aria-busy', 'false');
       return;
     }
+    const caption = figure.querySelector('[data-image-caption]');
+    const credit = figure.querySelector('[data-image-credit]');
+    const source = figure.querySelector('[data-image-source]');
+    if (descriptor.caption && caption && !caption.textContent) caption.textContent = descriptor.caption;
+    if (descriptor.credit && credit && !credit.textContent) credit.textContent = `Photo: ${descriptor.credit}`;
+    if (descriptor.sourceUrl && source && !source.getAttribute('href')) { source.href = descriptor.sourceUrl; source.hidden = false; }
+    const figcaption = figure.querySelector('figcaption');
+    if (figcaption && (caption?.textContent || credit?.textContent || !source?.hidden)) figcaption.hidden = false;
     const frame = figure.querySelector('.stop-picture-frame');
     if (!frame || !figure.isConnected) return;
     const load = () => {

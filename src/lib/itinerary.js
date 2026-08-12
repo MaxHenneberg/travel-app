@@ -70,11 +70,17 @@ function validateImages(images, path, errors) {
       errors.push(issue(imagePath, 'invalid_type', 'must be an object.', 'Use an object with url and alt fields.'));
       return;
     }
-    rejectUnknownProperties(image, new Set(['url', 'alt', 'caption', 'credit', 'sourceUrl']), imagePath, errors);
-    requiredString(image.url, `${imagePath}/url`, errors);
-    if (typeof image.url === 'string' && !/^https:\/\//i.test(image.url) && !/^images\/stops\/[a-z0-9][a-z0-9._/-]*$/i.test(image.url)) {
-      errors.push(issue(`${imagePath}/url`, 'unsafe_url', 'must use an https URL or a bundled stop image path.', 'Use an absolute https:// URL or images/stops/<file>.'));
+    rejectUnknownProperties(image, new Set(['url', 'provider', 'commonsFile', 'commonsQuery', 'alt', 'caption', 'credit', 'sourceUrl']), imagePath, errors);
+    const direct = image.url !== undefined;
+    const commons = image.provider === 'wikimediaCommons'
+      && [image.commonsFile, image.commonsQuery].filter((value) => typeof value === 'string' && value.trim()).length === 1;
+    if (!direct && !commons) errors.push(issue(imagePath, 'missing_image_source', 'must define an HTTPS url or one Wikimedia Commons file/query.', 'Set url, or provider wikimediaCommons with commonsFile or commonsQuery.'));
+    if (direct) requiredString(image.url, `${imagePath}/url`, errors);
+    if (typeof image.url === 'string' && !/^https:\/\//i.test(image.url)) {
+      errors.push(issue(`${imagePath}/url`, 'unsafe_url', 'must use an https URL.', 'Use an absolute https:// URL.'));
     }
+    if (image.provider !== undefined && image.provider !== 'wikimediaCommons') errors.push(issue(`${imagePath}/provider`, 'unsupported_provider', 'must be wikimediaCommons.', 'Use the supported keyless Wikimedia Commons provider.'));
+    for (const field of ['commonsFile', 'commonsQuery']) optionalString(image[field], `${imagePath}/${field}`, errors);
     if (typeof image.alt !== 'string') {
       errors.push(issue(`${imagePath}/alt`, 'required_string', 'must be a string.', 'Describe the image, or use an empty string only when it is decorative.'));
     }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { safeImageUrl, validStopImages } from '../../src/lib/stop-images.js';
+import { commonsApiUrl, parseCommonsResponse, safeImageUrl, validStopImages } from '../../src/lib/stop-images.js';
 
 test('filters malformed and insecure image metadata without leaking credentials', () => {
   assert.equal(safeImageUrl('http://example.test/a.jpg'), null);
@@ -9,15 +9,29 @@ test('filters malformed and insecure image metadata without leaking credentials'
   assert.deepEqual(validStopImages([
     null,
     { url: 'javascript:alert(1)', alt: 'Unsafe' },
-    { url: 'https://example.test/a.jpg' },
+    { provider: 'unknown', commonsQuery: 'place', alt: 'Unsafe' },
     { url: 'https://example.test/a.jpg', alt: '', sourceUrl: 'http://example.test' },
-  ]), [{ url: 'https://example.test/a.jpg', alt: '', caption: '', credit: '', sourceUrl: null }]);
+  ]), [{ url: 'https://example.test/a.jpg', apiUrl: null, alt: '', caption: '', credit: '', sourceUrl: null }]);
 });
 
-test('resolves allowlisted bundled stop images beneath the repository base path', () => {
-  assert.equal(
-    safeImageUrl('images/stops/kyoto-temple.png', 'https://example.test/travel-app/'),
-    'https://example.test/travel-app/images/stops/kyoto-temple.png',
-  );
-  assert.equal(safeImageUrl('images/stops/../../private.png', 'https://example.test/travel-app/'), null);
+test('builds keyless Wikimedia Commons file and search API URLs', () => {
+  const file = new URL(commonsApiUrl({ provider: 'wikimediaCommons', commonsFile: 'Example.jpg' }));
+  assert.equal(file.origin, 'https://commons.wikimedia.org');
+  assert.equal(file.searchParams.get('origin'), '*');
+  assert.equal(file.searchParams.get('titles'), 'File:Example.jpg');
+  const search = new URL(commonsApiUrl({ provider: 'wikimediaCommons', commonsQuery: 'MAAT Lisbon riverfront' }));
+  assert.equal(search.searchParams.get('generator'), 'search');
+  assert.equal(search.searchParams.get('gsrnamespace'), '6');
+  assert.equal(search.searchParams.get('gsrsearch'), 'MAAT Lisbon riverfront');
+});
+
+test('extracts safe thumbnail, attribution, description and source metadata', () => {
+  assert.deepEqual(parseCommonsResponse({ query: { pages: [{ imageinfo: [{
+    thumburl: 'https://upload.wikimedia.org/example.jpg',
+    descriptionurl: 'https://commons.wikimedia.org/wiki/File:Example.jpg',
+    extmetadata: { ImageDescription: { value: '<b>Riverfront museum</b>' }, Artist: { value: 'Jane &amp; John' } },
+  }] }] } }, 'Museum exterior'), {
+    url: 'https://upload.wikimedia.org/example.jpg', alt: 'Museum exterior', caption: 'Riverfront museum',
+    credit: 'Jane & John', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Example.jpg',
+  });
 });

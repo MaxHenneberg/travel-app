@@ -28,9 +28,9 @@ test('accepts optional secure image metadata and rejects unsafe entries', () => 
   }];
   assert.equal(validateItinerary(withImages, schema), withImages);
 
-  const bundled = structuredClone(withImages);
-  bundled.trip.days[0].activities[0].images[0].url = 'images/stops/kyoto-temple.png';
-  assert.equal(validateItinerary(bundled, schema), bundled);
+  const commons = structuredClone(withImages);
+  commons.trip.days[0].activities[0].images[0] = { provider: 'wikimediaCommons', commonsFile: 'Example.jpg', alt: 'Example' };
+  assert.equal(validateItinerary(commons, schema), commons);
 
   const insecure = structuredClone(withImages);
   insecure.trip.days[0].activities[0].images[0].url = 'http://images.example/place.jpg';
@@ -41,15 +41,11 @@ test('accepts optional secure image metadata and rejects unsafe entries', () => 
   assert.throws(() => validateItinerary(incomplete, schema), (error) => error.path.endsWith('/images/0/alt'));
 });
 
-test('bundled Japan source references app-scoped generated stop artwork', async () => {
+test('bundled Japan source references Wikimedia Commons without an API key', () => {
   const sensoji = japanFixture.stops[0].days[1].items.find((item) => item.id === 'tokyo-2026-09-07-sensoji');
   assert.deepEqual(sensoji.images, [{
-    url: 'images/stops/kyoto-temple.png',
-    alt: 'Traditional Japanese temple framed by autumn foliage',
-    caption: 'Temple atmosphere for the Japan itinerary',
-    credit: 'Trailbook generated artwork',
+    provider: 'wikimediaCommons', commonsQuery: 'Sensō-ji temple Tokyo pagoda', alt: 'Sensō-ji temple gate and pagoda',
   }]);
-  assert.ok((await readFile(new URL(`../../public/${sensoji.images[0].url}`, import.meta.url))).byteLength > 0);
 });
 
 test('reports a missing required field using its JSON path', () => {

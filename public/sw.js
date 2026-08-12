@@ -1,5 +1,6 @@
 const CACHE = 'trailbook-v1';
 const IMAGE_CACHE = 'trailbook-stop-images-v1';
+const IMAGE_METADATA_CACHE = 'trailbook-image-metadata-v1';
 const MAX_IMAGE_ENTRIES = 24;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_CACHE_BYTES = 32 * 1024 * 1024;
@@ -21,7 +22,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => ![CACHE, IMAGE_CACHE].includes(key)).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => ![CACHE, IMAGE_CACHE, IMAGE_METADATA_CACHE].includes(key)).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });
