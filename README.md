@@ -1,6 +1,6 @@
 # Trailbook travel app
 
-An offline-first, installable travel itinerary for Android and the web. Trailbook renders versioned JSON itineraries, keeps downloaded and imported trips on-device, opens ordered places and routes in Google Maps, and shares immutable GitHub Pages-safe deep links.
+An offline-first, installable travel itinerary for Android and the web. Trailbook renders versioned JSON itineraries, keeps downloaded and imported trips on-device, shows ordered day routes in the app, opens individual places in Google Maps, and shares immutable GitHub Pages-safe deep links.
 
 ## Local development
 

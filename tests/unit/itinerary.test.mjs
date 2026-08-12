@@ -7,6 +7,7 @@ import { validateItinerary } from '../../src/itinerary/validate.js';
 
 const schema = JSON.parse(await readFile(new URL('../../public/data/schemas/itinerary.v1.schema.json', import.meta.url)));
 const fixture = JSON.parse(await readFile(new URL('../../public/data/itineraries/example.v1.json', import.meta.url)));
+const japanFixture = JSON.parse(await readFile(new URL('../../public/data/itineraries/Japan_2026.itinerary.json', import.meta.url)));
 
 test('accepts the bundled v1 fixture and omitted optional fields', () => {
   const minimal = structuredClone(fixture);
@@ -27,6 +28,10 @@ test('accepts optional secure image metadata and rejects unsafe entries', () => 
   }];
   assert.equal(validateItinerary(withImages, schema), withImages);
 
+  const bundled = structuredClone(withImages);
+  bundled.trip.days[0].activities[0].images[0].url = 'images/stops/kyoto-temple.png';
+  assert.equal(validateItinerary(bundled, schema), bundled);
+
   const insecure = structuredClone(withImages);
   insecure.trip.days[0].activities[0].images[0].url = 'http://images.example/place.jpg';
   assert.throws(() => validateItinerary(insecure, schema), (error) => error.path.endsWith('/images/0/url'));
@@ -34,6 +39,17 @@ test('accepts optional secure image metadata and rejects unsafe entries', () => 
   const incomplete = structuredClone(withImages);
   delete incomplete.trip.days[0].activities[0].images[0].alt;
   assert.throws(() => validateItinerary(incomplete, schema), (error) => error.path.endsWith('/images/0/alt'));
+});
+
+test('bundled Japan source references app-scoped generated stop artwork', async () => {
+  const sensoji = japanFixture.stops[0].days[1].items.find((item) => item.id === 'tokyo-2026-09-07-sensoji');
+  assert.deepEqual(sensoji.images, [{
+    url: 'images/stops/kyoto-temple.png',
+    alt: 'Traditional Japanese temple framed by autumn foliage',
+    caption: 'Temple atmosphere for the Japan itinerary',
+    credit: 'Trailbook generated artwork',
+  }]);
+  assert.ok((await readFile(new URL(`../../public/${sensoji.images[0].url}`, import.meta.url))).byteLength > 0);
 });
 
 test('reports a missing required field using its JSON path', () => {

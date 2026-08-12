@@ -72,8 +72,8 @@ function validateImages(images, path, errors) {
     }
     rejectUnknownProperties(image, new Set(['url', 'alt', 'caption', 'credit', 'sourceUrl']), imagePath, errors);
     requiredString(image.url, `${imagePath}/url`, errors);
-    if (typeof image.url === 'string' && !/^https:\/\//i.test(image.url)) {
-      errors.push(issue(`${imagePath}/url`, 'unsafe_url', 'must use an https URL.', 'Use an absolute https:// image URL.'));
+    if (typeof image.url === 'string' && !/^https:\/\//i.test(image.url) && !/^images\/stops\/[a-z0-9][a-z0-9._/-]*$/i.test(image.url)) {
+      errors.push(issue(`${imagePath}/url`, 'unsafe_url', 'must use an https URL or a bundled stop image path.', 'Use an absolute https:// URL or images/stops/<file>.'));
     }
     if (typeof image.alt !== 'string') {
       errors.push(issue(`${imagePath}/alt`, 'required_string', 'must be a string.', 'Describe the image, or use an empty string only when it is decorative.'));

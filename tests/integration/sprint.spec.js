@@ -82,10 +82,13 @@ test('TA-TRAVEL-8-01 @pr opens a place through an encoded Google Maps link', asy
 test('TA-TRAVEL-8-02 @pr preserves ordered stops in a day route', async ({ page }, testInfo) => {
   onlyProject(testInfo, 'android-chrome');
   await openSample(page, 'river-day');
-  const url = new URL(await page.getByRole('link', { name: /Open day route/ }).getAttribute('href'));
-  expect(url.searchParams.get('origin')).toContain('Jerónimos Monastery');
-  expect(url.searchParams.get('waypoints')).toBe('38.6977,-9.2061');
-  expect(url.searchParams.get('destination')).toBe('38.6959,-9.1947');
+  await page.getByRole('button', { name: 'View day route' }).click();
+  const route = page.getByRole('list', { name: 'Ordered day route' });
+  await expect(route.getByRole('listitem')).toHaveCount(3);
+  await expect(route.getByRole('listitem').nth(0)).toContainText('Jerónimos Monastery');
+  await expect(route.getByRole('listitem').nth(1)).toContainText('Jardim de Belém');
+  await expect(route.getByRole('listitem').nth(2)).toContainText('MAAT Lisbon');
+  await expect(page.getByRole('link', { name: /Open day route/ })).toHaveCount(0);
 });
 
 test('TA-TRAVEL-8-03 @pr explains that external maps are unavailable offline', async ({ page, context }, testInfo) => {

@@ -47,7 +47,10 @@ test('TA-TRAVEL-80-01 @pr validates optional image schema compatibility', async 
   const schema = await page.request.get('./data/schemas/itinerary.v1.schema.json').then((response) => response.json());
   expect(schema.$defs.activity.properties.images.items.$ref).toBe('#/$defs/image');
   expect(schema.$defs.image.required).toEqual(['url', 'alt']);
-  expect(schema.$defs.image.properties.url.pattern).toBe('^https://');
+  expect(schema.$defs.image.properties.url.anyOf).toEqual(expect.arrayContaining([
+    expect.objectContaining({ pattern: '^https://' }),
+    expect.objectContaining({ pattern: expect.stringContaining('images/stops/') }),
+  ]));
 
   const valid = itinerary([activity('one', [{
     url: imageUrl('valid'), alt: 'A recognizable stop', caption: 'Morning', credit: 'Photographer', sourceUrl: 'https://images.example.test/source',
@@ -58,6 +61,20 @@ test('TA-TRAVEL-80-01 @pr validates optional image schema compatibility', async 
   valid.trip.days[0].activities[0].images[0].url = 'http://images.example.test/insecure.png';
   await page.locator('#trip-import').setInputFiles({ name: 'insecure.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(valid)) });
   await expect(page.getByLabel('Copyable itinerary repair message')).toContainText('/images/0/url [unsafe_url]');
+});
+
+test('published preview visibly renders bundled stop artwork under the Pages subpath', async ({ page }, testInfo) => {
+  onlyProject(testInfo, 'chromium');
+  await page.goto('./#/trip/weekend-lisbon/v/1/day/river-day');
+  const picture = page.locator('[data-activity-id="belem"] .stop-picture');
+  await expect(picture.locator('img')).toHaveAttribute('src', /\/travel-app\/images\/stops\/lisbon-monastery\.svg$/);
+  await expect(picture.locator('img')).toHaveAttribute('alt', 'Sunlit arches at Jerónimos Monastery');
+  await expect(picture.locator('.stop-picture-frame')).toHaveClass(/loaded/);
+  const riverfront = page.locator('[data-activity-id="maat"] .stop-picture');
+  await riverfront.scrollIntoViewIfNeeded();
+  await expect(riverfront.locator('img')).toHaveAttribute('src', /\/travel-app\/images\/stops\/lisbon-riverfront\.png$/);
+  await expect(riverfront.locator('img')).toHaveAttribute('alt', 'MAAT beside the Tagus river at golden hour');
+  await expect(riverfront.locator('.stop-picture-frame')).toHaveClass(/loaded/);
 });
 
 test('TA-TRAVEL-80-02 @pr lazy-loads responsive, accessible online thumbnails', async ({ context, page }, testInfo) => {

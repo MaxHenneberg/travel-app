@@ -1,7 +1,7 @@
 import './style.css';
 import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './lib/itinerary.js';
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
-import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
+import { buildGoogleMapsPlaceUrl } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
 import { imageIsCached, validStopImages } from './lib/stop-images.js';
 
@@ -86,7 +86,7 @@ function renderActivity(activity) {
   const time = activityTime(activity);
   const details = renderDetails(activity);
   const mapUrl = placeUrl(activity);
-  const [image] = validStopImages(activity.images);
+  const [image] = validStopImages(activity.images, baseUrl);
   const imageMarkup = image ? `<figure class="stop-picture" data-stop-picture data-image-url="${escapeHtml(image.url)}" data-image-alt="${escapeHtml(image.alt)}">
     <div class="stop-picture-frame" aria-busy="true"><span class="stop-picture-placeholder">Picture unavailable</span></div>
     ${(image.caption || image.credit || image.sourceUrl) ? `<figcaption>${image.caption ? `<span>${escapeHtml(image.caption)}</span>` : ''}${image.credit ? `<span>Photo: ${escapeHtml(image.credit)}</span>` : ''}${image.sourceUrl ? `<a href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noopener noreferrer">Image source</a>` : ''}</figcaption>` : ''}
@@ -107,9 +107,20 @@ function renderActivity(activity) {
   </article>`;
 }
 
-function routeUrls(day) {
-  const stops = (day?.activities ?? []).map(activityLocation).filter(Boolean);
-  try { return buildGoogleMapsRouteUrls(stops, { travelMode: 'walking' }); } catch { return []; }
+function renderDayRoute(day) {
+  const stops = (day?.activities ?? []).flatMap((activity) => {
+    const location = activityLocation(activity);
+    if (!location) return [];
+    const label = typeof location === 'string' ? location : firstValue(location.name, location.address, activity.title);
+    const transport = activity.transport && (typeof activity.transport === 'string' ? activity.transport
+      : [activity.transport.mode, activity.transport.line].filter(Boolean).join(' · '));
+    return [{ title: activity.title, label, transport }];
+  });
+  if (!stops.length) return '';
+  return `<section id="day-route" class="day-route" aria-labelledby="day-route-title">
+    <div><p class="eyebrow">On this page</p><h3 id="day-route-title" tabindex="-1">Day route</h3><p>Stops are shown in itinerary order and remain available offline.</p></div>
+    <ol aria-label="Ordered day route">${stops.map((stop, index) => `<li><span class="route-marker" aria-hidden="true">${index + 1}</span><div><strong>${escapeHtml(stop.title)}</strong><span>${escapeHtml(stop.label)}</span>${stop.transport ? `<small>${escapeHtml(stop.transport)}</small>` : ''}</div></li>`).join('')}</ol>
+  </section>`;
 }
 
 function tripHash(trip, dayId = null) {
@@ -202,7 +213,6 @@ function navigation(days, day) {
 async function renderTrip(savedTrips) {
   const days = tripDays(state.trip);
   const day = currentDay();
-  const routes = routeUrls(day);
   app.innerHTML = `<div class="app-shell">
     ${topbar()}
     <header class="hero"><div class="hero-content">
@@ -217,9 +227,10 @@ async function renderTrip(savedTrips) {
         ${importErrorMarkup()}
         ${day ? `<article class="day-panel">
           <header class="day-heading"><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">← Trip overview</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 data-testid="selected-day-title">${escapeHtml(day.title || day.date)}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
-            ${routes.length ? `<div class="day-toolbar">${routes.map((url, index) => `<a class="button subtle" data-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${routes.length > 1 ? `Route part ${index + 1}` : 'Open day route'} ↗</a>`).join('')}</div>` : ''}
+            ${renderDayRoute(day) ? '<div class="day-toolbar"><button class="button subtle" data-view-day-route type="button">View day route ↓</button></div>' : ''}
           </header>
           ${(day.activities ?? []).length ? `<div class="timeline">${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No fixed plans yet</strong>This day is open. Add an activity in the itinerary file when you are ready.</div>'}
+          ${renderDayRoute(day)}
         </article>` : `<article class="trip-overview" data-testid="trip-overview">
           <header><p class="eyebrow">At a glance</p><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day to see its complete itinerary.</p>'}</header>
           ${days.length ? `<ol class="overview-day-list">${days.map(dayPreview).join('')}</ol>` : '<section class="empty-card" data-testid="empty-itinerary"><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></section>'}
@@ -358,6 +369,10 @@ async function hydrateStopPictures() {
     }, { rootMargin: '300px 0px' });
     observer.observe(figure);
   }));
+  document.querySelector('[data-view-day-route]')?.addEventListener('click', () => {
+    document.querySelector('#day-route')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    document.querySelector('#day-route-title')?.focus({ preventScroll: true });
+  });
 }
 
 async function loadPublished(target) {

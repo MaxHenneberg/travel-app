@@ -13,3 +13,11 @@ test('filters malformed and insecure image metadata without leaking credentials'
     { url: 'https://example.test/a.jpg', alt: '', sourceUrl: 'http://example.test' },
   ]), [{ url: 'https://example.test/a.jpg', alt: '', caption: '', credit: '', sourceUrl: null }]);
 });
+
+test('resolves allowlisted bundled stop images beneath the repository base path', () => {
+  assert.equal(
+    safeImageUrl('images/stops/kyoto-temple.png', 'https://example.test/travel-app/'),
+    'https://example.test/travel-app/images/stops/kyoto-temple.png',
+  );
+  assert.equal(safeImageUrl('images/stops/../../private.png', 'https://example.test/travel-app/'), null);
+});
