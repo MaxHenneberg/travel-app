@@ -38,6 +38,8 @@ Route identifiers are restricted to safe path characters. Every fetched or local
 
 The repository-scoped web manifest and service worker make the deployed app installable and cache the application shell plus successfully loaded same-origin resources. Itineraries are retained by immutable revision in IndexedDB, with graceful local fallbacks. A trip must be opened online once before its deep link can be reopened offline.
 
+Optional stop pictures use HTTPS-only metadata (`url`, required `alt`, and optional `caption`, `credit`, and HTTPS `sourceUrl`). They are requested only within 300 px of the viewport, are skipped when data saving is enabled, use a no-referrer policy, reserve a 16:9 layout area, and degrade to a stable placeholder. Successfully decoded, CORS-enabled image responses are kept in the app-scoped `trailbook-stop-images-v1` cache. The cache uses versioned, deterministic oldest-first eviction and is capped at 24 entries, 5 MiB per image, and 32 MiB total; failed, non-image, opaque, and oversized responses are not retained. Offline rendering checks the cache before assigning an image URL, so uncached pictures never trigger repeated remote attempts.
+
 ## GitHub and Jira reporting
 
 Set **Settings → Pages → Source** to **GitHub Actions**. The Pages workflow deploys pushes to the default branch and runs post-deployment Chromium and Android-profile smoke tests.

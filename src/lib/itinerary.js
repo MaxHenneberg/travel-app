@@ -59,6 +59,35 @@ function requiredDateTime(value, path, errors) {
   }
 }
 
+function validateImages(images, path, errors) {
+  if (!Array.isArray(images)) {
+    errors.push(issue(path, 'invalid_type', 'must be an array.', 'Use an array of image metadata objects.'));
+    return;
+  }
+  images.forEach((image, index) => {
+    const imagePath = `${path}/${index}`;
+    if (!isRecord(image)) {
+      errors.push(issue(imagePath, 'invalid_type', 'must be an object.', 'Use an object with url and alt fields.'));
+      return;
+    }
+    rejectUnknownProperties(image, new Set(['url', 'alt', 'caption', 'credit', 'sourceUrl']), imagePath, errors);
+    requiredString(image.url, `${imagePath}/url`, errors);
+    if (typeof image.url === 'string' && !/^https:\/\//i.test(image.url)) {
+      errors.push(issue(`${imagePath}/url`, 'unsafe_url', 'must use an https URL.', 'Use an absolute https:// image URL.'));
+    }
+    if (typeof image.alt !== 'string') {
+      errors.push(issue(`${imagePath}/alt`, 'required_string', 'must be a string.', 'Describe the image, or use an empty string only when it is decorative.'));
+    }
+    for (const field of ['caption', 'credit']) optionalString(image[field], `${imagePath}/${field}`, errors);
+    if (image.sourceUrl !== undefined) {
+      requiredString(image.sourceUrl, `${imagePath}/sourceUrl`, errors);
+      if (typeof image.sourceUrl === 'string' && !/^https:\/\//i.test(image.sourceUrl)) {
+        errors.push(issue(`${imagePath}/sourceUrl`, 'unsafe_url', 'must use an https URL.', 'Use an absolute https:// source URL.'));
+      }
+    }
+  });
+}
+
 function duplicateIds(items, path, errors) {
   const seen = new Set();
   for (const [index, item] of items.entries()) {
@@ -75,7 +104,7 @@ function validateActivity(activity, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with an activity object.`));
     return;
   }
-  rejectUnknownProperties(activity, new Set(['id', 'title', 'startsAt', 'endsAt', 'category', 'location', 'notes']), path, errors);
+  rejectUnknownProperties(activity, new Set(['id', 'title', 'startsAt', 'endsAt', 'category', 'location', 'notes', 'images']), path, errors);
   requiredString(activity.id, `${path}/id`, errors);
   requiredString(activity.title, `${path}/title`, errors);
   requiredDateTime(activity.startsAt, `${path}/startsAt`, errors);
@@ -83,6 +112,7 @@ function validateActivity(activity, path, errors) {
   optionalString(activity.category, `${path}/category`, errors);
   optionalString(activity.location, `${path}/location`, errors);
   optionalString(activity.notes, `${path}/notes`, errors);
+  if (activity.images !== undefined) validateImages(activity.images, `${path}/images`, errors);
 
   if (typeof activity.startsAt === 'string' && typeof activity.endsAt === 'string'
       && !Number.isNaN(Date.parse(activity.startsAt)) && !Number.isNaN(Date.parse(activity.endsAt))
@@ -135,7 +165,7 @@ function validateFlatActivity(activity, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with an activity object.`));
     return;
   }
-  rejectUnknownProperties(activity, new Set(['id', 'time', 'duration', 'title', 'type', 'description', 'notes', 'reservation', 'cost', 'transport', 'location', 'links']), path, errors);
+  rejectUnknownProperties(activity, new Set(['id', 'time', 'duration', 'title', 'type', 'description', 'notes', 'reservation', 'cost', 'transport', 'location', 'links', 'images']), path, errors);
   requiredString(activity.id, `${path}/id`, errors);
   requiredString(activity.title, `${path}/title`, errors);
   for (const field of ['time', 'duration', 'type', 'description', 'notes', 'reservation']) optionalString(activity[field], `${path}/${field}`, errors);
@@ -143,6 +173,7 @@ function validateFlatActivity(activity, path, errors) {
     errors.push(issue(`${path}/cost`, 'invalid_type', 'must be a string or number.', 'Use a display value such as "€20" or a numeric amount.'));
   }
   if (activity.location !== undefined) validateFlatLocation(activity.location, `${path}/location`, errors);
+  if (activity.images !== undefined) validateImages(activity.images, `${path}/images`, errors);
   if (activity.transport !== undefined) {
     if (!isRecord(activity.transport)) {
       errors.push(issue(`${path}/transport`, 'invalid_type', 'must be an object.', 'Use an object describing the transport leg.'));

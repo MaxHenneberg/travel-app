@@ -3,6 +3,7 @@ import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './l
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
+import { imageIsCached, validStopImages } from './lib/stop-images.js';
 
 const app = document.querySelector('#app');
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
@@ -85,11 +86,17 @@ function renderActivity(activity) {
   const time = activityTime(activity);
   const details = renderDetails(activity);
   const mapUrl = placeUrl(activity);
+  const [image] = validStopImages(activity.images);
+  const imageMarkup = image ? `<figure class="stop-picture" data-stop-picture data-image-url="${escapeHtml(image.url)}" data-image-alt="${escapeHtml(image.alt)}">
+    <div class="stop-picture-frame" aria-busy="true"><span class="stop-picture-placeholder">Picture unavailable</span></div>
+    ${(image.caption || image.credit || image.sourceUrl) ? `<figcaption>${image.caption ? `<span>${escapeHtml(image.caption)}</span>` : ''}${image.credit ? `<span>Photo: ${escapeHtml(image.credit)}</span>` : ''}${image.sourceUrl ? `<a href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noopener noreferrer">Image source</a>` : ''}</figcaption>` : ''}
+  </figure>` : '';
   return `<article class="activity" data-activity-id="${escapeHtml(activity.id)}" data-testid="activity-item">
     <div class="activity-time">${time ? `<time${activity.startsAt ? ` datetime="${escapeHtml(activity.startsAt)}"` : ''}>${escapeHtml(time)}</time>` : '<span class="unscheduled">Any time</span>'}</div>
     <div class="activity-card">
       <p class="activity-type">${escapeHtml(firstValue(activity.type, activity.category, 'Activity'))}</p>
       <h3>${escapeHtml(activity.title)}</h3>
+      ${imageMarkup}
       <div class="activity-summary">
         ${activity.duration ? `<span>${escapeHtml(activity.duration)}</span>` : ''}
         ${typeof activity.location === 'string' ? `<span>${escapeHtml(activity.location)}</span>` : activity.location?.name ? `<span>${escapeHtml(activity.location.name)}</span>` : ''}
@@ -222,6 +229,7 @@ async function renderTrip(savedTrips) {
     ${noticeMarkup()}
   </div>`;
   bindCommon();
+  hydrateStopPictures();
 }
 
 async function render() {
@@ -310,6 +318,46 @@ function bindCommon() {
   document.querySelector('#install-app')?.addEventListener('click', async () => {
     await state.installPrompt?.prompt(); state.installPrompt = null; render();
   });
+}
+
+async function hydrateStopPictures() {
+  const saveData = navigator.connection?.saveData === true;
+  await Promise.all([...document.querySelectorAll('[data-stop-picture]')].map(async (figure) => {
+    const url = figure.dataset.imageUrl;
+    const cached = await imageIsCached(url);
+    if ((!state.online && !cached) || (saveData && !cached)) {
+      figure.querySelector('.stop-picture-frame')?.setAttribute('aria-busy', 'false');
+      return;
+    }
+    const frame = figure.querySelector('.stop-picture-frame');
+    if (!frame || !figure.isConnected) return;
+    const load = () => {
+      if (frame.querySelector('img')) return;
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = figure.dataset.imageAlt ?? '';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.crossOrigin = 'anonymous';
+      image.referrerPolicy = 'no-referrer';
+      image.width = 640;
+      image.height = 360;
+      image.addEventListener('load', () => { frame.classList.add('loaded'); frame.setAttribute('aria-busy', 'false'); });
+      image.addEventListener('error', () => {
+        image.remove();
+        frame.setAttribute('aria-busy', 'false');
+        navigator.serviceWorker?.controller?.postMessage({ type: 'PURGE_IMAGE', url });
+      });
+      frame.append(image);
+    };
+    if (!('IntersectionObserver' in window)) { load(); return; }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      load();
+    }, { rootMargin: '300px 0px' });
+    observer.observe(figure);
+  }));
 }
 
 async function loadPublished(target) {

@@ -16,6 +16,26 @@ test('accepts the bundled v1 fixture and omitted optional fields', () => {
   assert.equal(validateItinerary(minimal, schema), minimal);
 });
 
+test('accepts optional secure image metadata and rejects unsafe entries', () => {
+  const withImages = structuredClone(fixture);
+  withImages.trip.days[0].activities[0].images = [{
+    url: 'https://images.example/place.jpg',
+    alt: 'A city square',
+    caption: 'At sunrise',
+    credit: 'Example photographer',
+    sourceUrl: 'https://images.example/source',
+  }];
+  assert.equal(validateItinerary(withImages, schema), withImages);
+
+  const insecure = structuredClone(withImages);
+  insecure.trip.days[0].activities[0].images[0].url = 'http://images.example/place.jpg';
+  assert.throws(() => validateItinerary(insecure, schema), (error) => error.path.endsWith('/images/0/url'));
+
+  const incomplete = structuredClone(withImages);
+  delete incomplete.trip.days[0].activities[0].images[0].alt;
+  assert.throws(() => validateItinerary(incomplete, schema), (error) => error.path.endsWith('/images/0/alt'));
+});
+
 test('reports a missing required field using its JSON path', () => {
   const invalid = structuredClone(fixture);
   delete invalid.trip.title;
