@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maxhenneberg.github.io/travel-app/data/schemas/itinerary.v1.schema.json",
+  "title": "Travel itinerary schema v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "trip"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "trip": { "$ref": "#/$defs/trip" }
+  },
+  "$defs": {
+    "trip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "startDate", "endDate", "timeZone", "days"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "timeZone": { "type": "string", "minLength": 1 },
+        "countryCode": { "$ref": "#/$defs/countryCode" },
+        "days": { "type": "array", "items": { "$ref": "#/$defs/day" } }
+      }
+    },
+    "day": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "date", "activities"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "date": { "type": "string", "format": "date" },
+        "title": { "type": "string", "minLength": 1 },
+        "countryCode": { "$ref": "#/$defs/countryCode" },
+        "activities": { "type": "array", "items": { "$ref": "#/$defs/activity" } }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "startsAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "startsAt": { "type": "string", "format": "date-time" },
+        "endsAt": { "type": "string", "format": "date-time" },
+        "category": { "type": "string", "minLength": 1 },
+        "countryCode": { "$ref": "#/$defs/countryCode" },
+        "location": { "type": "string", "minLength": 1 },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "countryCode": { "type": "string", "minLength": 2, "maxLength": 2, "description": "ISO 3166-1 alpha-2 country code; unsupported values are ignored by history derivation." }
+  }
+}
