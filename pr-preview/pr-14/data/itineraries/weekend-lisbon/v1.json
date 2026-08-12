@@ -56,6 +56,7 @@
           "title": "Jerónimos Monastery",
           "type": "Visit",
           "description": "Arrive near opening; the cloister ticket is timed.",
+          "images": [{ "url": "images/stops/lisbon-monastery.svg", "alt": "Sunlit arches at Jerónimos Monastery", "caption": "A landmark stop in Belém", "credit": "Trailbook illustration" }],
           "location": { "name": "Jerónimos Monastery", "placeId": "ChIJ98mRe6Q0GQ0R8sj4G6B0yPQ" }
         },
         {
@@ -71,6 +72,7 @@
           "duration": "90 min",
           "title": "MAAT riverside galleries",
           "type": "Museum",
+          "images": [{ "url": "images/stops/lisbon-riverfront.png", "alt": "MAAT beside the Tagus river at golden hour", "caption": "The riverside galleries", "credit": "Trailbook generated artwork" }],
           "location": { "name": "MAAT Lisbon", "lat": 38.6959, "lng": -9.1947 }
         }
       ]

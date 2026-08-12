@@ -69,7 +69,7 @@ self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
 
-  if (event.request.destination === 'image' && requestUrl.protocol === 'https:') {
+  if (event.request.destination === 'image' && (requestUrl.protocol === 'https:' || requestUrl.origin === scope.origin)) {
     event.respondWith(stopPictureResponse(event.request));
     return;
   }

@@ -57,7 +57,7 @@
           "intensity": "moderate",
           "items": [
             { "id": "tokyo-2026-09-07-breakfast", "type": "breakfast", "startTime": "10:00", "endTime": "10:50", "title": "Breakfast at Pelican Café", "placeId": "pelican-cafe", "details": "Charcoal-toasted Pelican bread and coffee. If the queue exceeds 20 minutes, use Kissaten Tomorrow.", "alternativePlaceIds": ["kissaten-tomorrow"] },
-            { "id": "tokyo-2026-09-07-sensoji", "type": "sightseeing", "startTime": "11:05", "endTime": "12:35", "title": "Sensō-ji and Asakusa Shrine", "placeIds": ["sensoji", "asakusa-shrine"] },
+            { "id": "tokyo-2026-09-07-sensoji", "type": "sightseeing", "startTime": "11:05", "endTime": "12:35", "title": "Sensō-ji and Asakusa Shrine", "placeIds": ["sensoji", "asakusa-shrine"], "images": [{ "url": "images/stops/kyoto-temple.png", "alt": "Traditional Japanese temple framed by autumn foliage", "caption": "Temple atmosphere for the Japan itinerary", "credit": "Trailbook generated artwork" }] },
             { "id": "tokyo-2026-09-07-kappabashi", "type": "sightseeing", "startTime": "12:50", "endTime": "14:00", "title": "Kappabashi Dougu Street", "placeId": "kappabashi" },
             { "id": "tokyo-2026-09-07-lunch", "type": "lunch", "startTime": "14:10", "endTime": "15:10", "title": "Late lunch at Sometaro", "placeId": "sometaro" },
             { "id": "tokyo-2026-09-07-rest", "type": "rest", "startTime": "15:20", "endTime": "16:40", "title": "Hotel rest / heat break" },
