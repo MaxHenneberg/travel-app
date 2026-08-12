@@ -3,10 +3,13 @@ import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './l
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
+import { countryName, createCountryHistoryStore } from './lib/country-history.js';
 
 const app = document.querySelector('#app');
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
+const countryHistory = createCountryHistoryStore();
+window.trailbookCountryHistory = countryHistory;
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
   importError: null, installPrompt: null, online: navigator.onLine,
@@ -154,6 +157,25 @@ function importErrorMarkup() {
   </section>`;
 }
 
+function countryHistoryMarkup() {
+  const countries = countryHistory.getHistory();
+  return `<section class="country-history" aria-labelledby="country-history-title">
+    <header><div><p class="eyebrow">Travel history</p><h2 id="country-history-title">Visited countries</h2></div><span>${countries.length} ${countries.length === 1 ? 'country' : 'countries'}</span></header>
+    <form id="add-country" class="country-form">
+      <label>Country code<input name="countryCode" required maxlength="2" autocapitalize="characters" placeholder="JP" aria-describedby="country-code-help"></label>
+      <label>First visited<input name="firstVisited" type="date"></label>
+      <label>Last visited<input name="lastVisited" type="date"></label>
+      <button class="primary" type="submit">Add country</button>
+      <small id="country-code-help">Use a two-letter ISO country code.</small>
+    </form>
+    <div class="country-list">${countries.length ? countries.map((country) => `<form class="country-record" data-country-record="${country.countryCode}">
+      <label><span>Country</span><input name="countryCode" required maxlength="2" value="${country.countryCode}" aria-label="Country code for ${escapeHtml(countryName(country.countryCode))}"></label>
+      <div class="country-copy"><strong>${escapeHtml(countryName(country.countryCode))}</strong><small>${country.visits} ${country.visits === 1 ? 'visit' : 'visits'} · ${country.sources.join(' + ')}${country.firstVisited ? ` · ${country.firstVisited}${country.lastVisited !== country.firstVisited ? `–${country.lastVisited}` : ''}` : ''}</small></div>
+      <button class="button subtle" type="submit">Save correction</button><button class="button danger" type="button" data-remove-country="${country.countryCode}">Remove</button>
+    </form>`).join('') : '<p class="country-empty">No visited countries yet. Import an itinerary with country codes or add one here.</p>'}</div>
+  </section>`;
+}
+
 async function renderCollection(savedTrips) {
   const trips = uniqueTrips(savedTrips);
   app.innerHTML = `<div class="app-shell">
@@ -164,6 +186,7 @@ async function renderCollection(savedTrips) {
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${importErrorMarkup()}
+      ${countryHistoryMarkup()}
       <div class="collection-heading"><div><p class="eyebrow">Saved and published</p><h2>Trip collection</h2></div><span>${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}</span></div>
       ${trips.length ? `<div class="trip-grid">${trips.map((trip) => tripCard(trip)).join('')}</div>` : `<section class="empty-card"><h2>No trips on this device</h2><p>${state.online ? 'Import an itinerary to get started.' : 'Connect once to download a published trip, or import an itinerary file already on this device.'}</p></section>`}
     </main>
@@ -251,6 +274,7 @@ async function importFile(file) {
   try {
     const candidate = parseItinerary(await file.text());
     await store.saveTrip(candidate);
+    countryHistory.importItinerary(candidate);
     state.importError = null;
     state.notice = 'Trip imported and saved on this device.';
     window.location.hash = tripHash(candidate);
@@ -276,6 +300,21 @@ async function shareCurrent() {
 }
 
 function bindCommon() {
+  document.querySelector('#add-country')?.addEventListener('submit', async (event) => {
+    event.preventDefault(); const data = new FormData(event.currentTarget);
+    try {
+      countryHistory.addManual({ countryCode: data.get('countryCode'), firstVisited: data.get('firstVisited'), lastVisited: data.get('lastVisited') });
+      state.notice = 'Country added to your travel history.'; await render();
+    } catch (error) { showNotice(error.message); }
+  });
+  document.querySelectorAll('[data-country-record]').forEach((form) => form.addEventListener('submit', async (event) => {
+    event.preventDefault(); const data = new FormData(form);
+    try { countryHistory.correct(form.dataset.countryRecord, { countryCode: data.get('countryCode'), visits: 1 }); state.notice = 'Country correction saved.'; await render(); }
+    catch (error) { showNotice(error.message); }
+  }));
+  document.querySelectorAll('[data-remove-country]').forEach((button) => button.addEventListener('click', async () => {
+    countryHistory.remove(button.dataset.removeCountry); state.notice = 'Country removed from your travel history.'; await render();
+  }));
   document.querySelectorAll('#trip-import').forEach((input) => input.addEventListener('change', (event) => {
     const [file] = event.target.files;
     if (file) importFile(file);
@@ -321,6 +360,7 @@ async function loadPublished(target) {
   const candidate = validateItinerary(await response.json());
   if (tripId(candidate) !== target.id || revision(candidate) !== target.revision) throw new Error('The published itinerary does not match the requested immutable revision.');
   await store.saveTrip(candidate);
+  countryHistory.importItinerary(candidate);
   return candidate;
 }
 

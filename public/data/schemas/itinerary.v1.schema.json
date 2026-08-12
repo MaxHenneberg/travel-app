@@ -21,6 +21,7 @@
         "startDate": { "type": "string", "format": "date" },
         "endDate": { "type": "string", "format": "date" },
         "timeZone": { "type": "string", "minLength": 1 },
+        "countryCode": { "$ref": "#/$defs/countryCode" },
         "days": { "type": "array", "items": { "$ref": "#/$defs/day" } }
       }
     },
@@ -32,6 +33,7 @@
         "id": { "type": "string", "minLength": 1 },
         "date": { "type": "string", "format": "date" },
         "title": { "type": "string", "minLength": 1 },
+        "countryCode": { "$ref": "#/$defs/countryCode" },
         "activities": { "type": "array", "items": { "$ref": "#/$defs/activity" } }
       }
     },
@@ -45,9 +47,11 @@
         "startsAt": { "type": "string", "format": "date-time" },
         "endsAt": { "type": "string", "format": "date-time" },
         "category": { "type": "string", "minLength": 1 },
+        "countryCode": { "$ref": "#/$defs/countryCode" },
         "location": { "type": "string", "minLength": 1 },
         "notes": { "type": "string", "minLength": 1 }
       }
-    }
+    },
+    "countryCode": { "type": "string", "minLength": 2, "maxLength": 2, "description": "ISO 3166-1 alpha-2 country code; unsupported values are ignored by history derivation." }
   }
 }
