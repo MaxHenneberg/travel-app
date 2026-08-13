@@ -1,4 +1,4 @@
-const CACHE = 'trailbook-v1';
+const CACHE = 'trailbook-v2';
 const IMAGE_CACHE = 'trailbook-stop-images-v1';
 const IMAGE_METADATA_CACHE = 'trailbook-image-metadata-v1';
 const MAX_IMAGE_ENTRIES = 24;
