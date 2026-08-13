@@ -3,13 +3,15 @@ import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './l
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
+import { applyTheme, readStoredTheme, themes } from './lib/theme.js';
 
 const app = document.querySelector('#app');
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
+const initialTheme = applyTheme(readStoredTheme());
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
-  importError: null, installPrompt: null, online: navigator.onLine,
+  importError: null, installPrompt: null, online: navigator.onLine, theme: initialTheme.id,
 };
 
 const escapeHtml = (value = '') => String(value)
@@ -139,7 +141,19 @@ function schemaExportLink(className = 'button ghost') {
 function topbar() {
   return `<header class="topbar">
     <a class="brand" href="${escapeHtml(baseUrl.href)}" aria-label="All trips"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></a>
-    <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
+    <div class="topbar-actions">
+      <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
+      <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="app-menu" aria-label="Open app menu"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></button>
+    </div>
+    <div class="menu-backdrop" id="menu-backdrop" aria-hidden="true" hidden></div>
+    <nav class="app-menu" id="app-menu" aria-label="App menu" aria-hidden="true" hidden>
+      <div class="app-menu-heading"><strong>App menu</strong><button class="drawer-close" id="drawer-close" type="button" aria-label="Close app menu">&times;</button></div>
+      <label class="theme-control" for="theme-selector"><span>Theme</span><select id="theme-selector" aria-describedby="active-theme-status">${themes.map((theme) => `<option value="${theme.id}" ${theme.id === state.theme ? 'selected' : ''}>${theme.name}</option>`).join('')}</select></label>
+      <label class="menu-action import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>
+      ${schemaExportLink('menu-action')}
+      <button class="menu-action" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button>
+    </nav>
+    <span id="active-theme-status" class="sr-only" aria-live="polite">Active theme: ${escapeHtml(themes.find(({ id }) => id === state.theme)?.name)}</span>
   </header>`;
 }
 
@@ -160,7 +174,6 @@ async function renderCollection(savedTrips) {
     ${topbar()}
     <header class="collection-hero">
       <div><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
-      <div class="hero-actions"><label class="button primary import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>${schemaExportLink()}<button class="button ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${importErrorMarkup()}
@@ -187,8 +200,6 @@ function navigation(days, day) {
     <a class="trip-overview-link ${day ? '' : 'active'}" href="${escapeHtml(tripHash(state.trip))}" ${day ? '' : 'aria-current="page"'}>Trip overview</a>
     <h2>Days</h2>
     <nav class="day-nav" aria-label="Itinerary days">${days.map((item, index) => `<a class="day-button ${item.id === day?.id ? 'active' : ''}" href="${escapeHtml(tripHash(state.trip, item.id))}" ${item.id === day?.id ? 'aria-current="page"' : ''}><small>Day ${index + 1} · ${escapeHtml(item.date)}</small><span>${escapeHtml(item.title || item.date)}</span></a>`).join('')}</nav>
-    <label class="button subtle import-label">Import another trip<input id="trip-import" type="file" accept="application/json,.json"></label>
-    ${schemaExportLink('button subtle')}
   </aside>`;
 }
 
@@ -202,7 +213,7 @@ async function renderTrip(savedTrips) {
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
-      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button><button class="ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button></div>
+      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button></div>
     </div></header>
     <main class="layout" data-testid="primary-content">
       ${navigation(days, day)}
@@ -276,10 +287,68 @@ async function shareCurrent() {
 }
 
 function bindCommon() {
+  const menu = document.querySelector('#app-menu');
+  const menuToggle = document.querySelector('#menu-toggle');
+  const backdrop = document.querySelector('#menu-backdrop');
+  let closeTimer;
+  const closeMenu = ({ restoreFocus = false } = {}) => {
+    if (!menu || !menuToggle || menu.hidden) return;
+    window.clearTimeout(closeTimer);
+    menu.classList.remove('open');
+    backdrop?.classList.remove('open');
+    menu.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('menu-open');
+    menuToggle.setAttribute('aria-expanded', 'false');
+    menuToggle.setAttribute('aria-label', 'Open app menu');
+    if (restoreFocus) menuToggle.focus();
+    closeTimer = window.setTimeout(() => {
+      if (!menu.classList.contains('open')) {
+        menu.hidden = true;
+        if (backdrop) backdrop.hidden = true;
+      }
+    }, 240);
+  };
+  menuToggle?.addEventListener('click', () => {
+    const opening = menu.hidden;
+    if (!opening) { closeMenu({ restoreFocus: true }); return; }
+    window.clearTimeout(closeTimer);
+    menu.hidden = false;
+    if (backdrop) backdrop.hidden = false;
+    document.body.classList.add('menu-open');
+    menuToggle.setAttribute('aria-expanded', 'true');
+    menuToggle.setAttribute('aria-label', 'Close app menu');
+    requestAnimationFrame(() => {
+      menu.classList.add('open');
+      backdrop?.classList.add('open');
+      menu.setAttribute('aria-hidden', 'false');
+      menu.querySelector('select, a, button, label')?.focus();
+    });
+  });
+  document.onkeydown = (event) => {
+    if (event.key === 'Escape') closeMenu({ restoreFocus: true });
+    if (event.key === 'Tab' && menu && !menu.hidden) {
+      const focusable = [...menu.querySelectorAll('select, a[href], button:not([hidden]), input:not([type="file"])')].filter((node) => !node.disabled);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  };
+  backdrop?.addEventListener('click', () => closeMenu({ restoreFocus: true }));
+  document.querySelector('#drawer-close')?.addEventListener('click', () => closeMenu({ restoreFocus: true }));
+  document.querySelector('#theme-selector')?.addEventListener('change', (event) => {
+    const active = applyTheme(event.currentTarget.value);
+    state.theme = active.id;
+    const status = document.querySelector('#active-theme-status');
+    if (status) status.textContent = `Active theme: ${active.name}`;
+    closeMenu({ restoreFocus: true });
+  });
   document.querySelectorAll('#trip-import').forEach((input) => input.addEventListener('change', (event) => {
     const [file] = event.target.files;
-    if (file) importFile(file);
+    if (file) { closeMenu(); importFile(file); }
   }));
+  document.querySelector('[data-schema-export]')?.addEventListener('click', () => closeMenu());
   document.querySelectorAll('[data-remove-trip]').forEach((button) => button.addEventListener('click', async () => {
     if (!window.confirm(`Remove ${button.closest('.trip-card')?.querySelector('h2')?.textContent || 'this trip'} from this device?`)) return;
     await store.deleteTrip(button.dataset.removeTrip, Number(button.dataset.removeRevision));
@@ -308,7 +377,7 @@ function bindCommon() {
     }
   });
   document.querySelector('#install-app')?.addEventListener('click', async () => {
-    await state.installPrompt?.prompt(); state.installPrompt = null; render();
+    closeMenu(); await state.installPrompt?.prompt(); state.installPrompt = null; render();
   });
 }
 
