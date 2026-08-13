@@ -118,6 +118,7 @@ test('published preview lazily resolves Wikimedia Commons metadata and attributi
   await context.route('https://images.example.test/**', (route) => route.fulfill({ status: 200, body: pixel, headers: { 'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*' } }));
   await page.goto('./#/trip/weekend-lisbon/v/1/day/arrival');
   const picture = page.locator('[data-activity-id="check-in"] .stop-picture');
+  await picture.scrollIntoViewIfNeeded();
   await expect(picture.locator('img')).toHaveAttribute('src', imageUrl('viewpoint'));
   await expect(picture.locator('.stop-picture-frame')).toHaveClass(/loaded/);
   await expect(picture.getByText('Photo: Commons photographer')).toBeVisible();
