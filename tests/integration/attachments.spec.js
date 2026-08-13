@@ -35,7 +35,10 @@ test('TA-TRAVEL-89-02 @pr @post-deploy reopens local attachments offline without
   test.skip(testInfo.project.name !== 'android-chrome', 'Offline installed-PWA behavior uses the Android profile.');
   await openTrip(page);
   await page.locator('[data-attachment-scope="weekend-lisbon:trip:weekend-lisbon"] input').setInputFiles(pdf);
-  await page.reload(); await expect(page.locator('.attachment-name')).toHaveText('ticket.pdf');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  await expect(page.locator('.attachment-name')).toHaveText('ticket.pdf');
   await context.setOffline(true); await page.reload();
   await expect(page.locator('.attachment-name')).toHaveText('ticket.pdf');
   page.once('dialog', (dialog) => dialog.accept()); await page.getByRole('button', { name: 'Remove' }).click();
