@@ -25,13 +25,13 @@ test('builds keyless Wikimedia Commons file and search API URLs', () => {
   assert.equal(search.searchParams.get('gsrsearch'), 'MAAT Lisbon riverfront');
 });
 
-test('extracts safe thumbnail, attribution, description and source metadata', () => {
+test('extracts safe thumbnail, attribution and source without exposing Commons descriptions', () => {
   assert.deepEqual(parseCommonsResponse({ query: { pages: [{ imageinfo: [{
     thumburl: 'https://upload.wikimedia.org/example.jpg',
     descriptionurl: 'https://commons.wikimedia.org/wiki/File:Example.jpg',
     extmetadata: { ImageDescription: { value: '&lt;a href=&quot;https://example.test&quot;&gt;Riverfront museum&lt;/a&gt;' }, Artist: { value: 'Jane &amp; John' } },
   }] }] } }, 'Museum exterior'), {
-    url: 'https://upload.wikimedia.org/example.jpg', alt: 'Museum exterior', caption: 'Riverfront museum',
+    url: 'https://upload.wikimedia.org/example.jpg', alt: 'Museum exterior', caption: '',
     credit: 'Jane & John', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Example.jpg',
   });
 });

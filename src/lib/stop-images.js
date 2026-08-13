@@ -45,7 +45,9 @@ export function parseCommonsResponse(payload, fallbackAlt = '') {
   return {
     url,
     alt: fallbackAlt,
-    caption: plainText(metadata.ImageDescription?.value),
+    // Commons descriptions frequently contain titles, links, and machine-oriented
+    // markup. Only itinerary-authored captions belong in the visible UI.
+    caption: '',
     credit: plainText(metadata.Artist?.value || metadata.Credit?.value),
     sourceUrl: safeImageUrl(info.descriptionurl),
   };
