@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="sakura">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,8 +9,18 @@
     <link rel="manifest" href="/travel-app/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/travel-app/icons/travel-192.png" />
     <title>Trailbook</title>
-    <script type="module" crossorigin src="/travel-app/assets/index-D1yAOOU_.js"></script>
-    <link rel="stylesheet" crossorigin href="/travel-app/assets/index-s7byYK56.css">
+    <script>
+      (() => {
+        const supported = new Set(['sakura', 'neon-japan']);
+        let stored;
+        try { stored = localStorage.getItem('trailbook.theme'); } catch { /* Use the bundled default. */ }
+        const theme = supported.has(stored) ? stored : 'sakura';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme === 'neon-japan' ? 'dark' : 'light';
+      })();
+    </script>
+    <script type="module" crossorigin src="/travel-app/assets/index-Cm3jKJZJ.js"></script>
+    <link rel="stylesheet" crossorigin href="/travel-app/assets/index-VmnZz3He.css">
   </head>
   <body>
     <div id="app"></div>
