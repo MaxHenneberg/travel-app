@@ -1,9 +1,11 @@
 import './style.css';
 import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './lib/itinerary.js';
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
-import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
+import { buildGoogleMapsPlaceUrl } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
 import { countryName, createCountryHistoryStore } from './lib/country-history.js';
+import { imageIsCached, resolveStopImage, validStopImages } from './lib/stop-images.js';
+import { applyTheme, readStoredTheme, themes } from './lib/theme.js';
 
 const app = document.querySelector('#app');
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
@@ -12,9 +14,10 @@ const countryHistory = createCountryHistoryStore();
 window.trailbookCountryHistory = countryHistory;
 const SECTION_KEY = 'trailbook:primary-section';
 const initialSection = (() => { try { const value = sessionStorage.getItem(SECTION_KEY); return ['trip', 'route', 'history'].includes(value) ? value : 'trip'; } catch { return 'trip'; } })();
+const initialTheme = applyTheme(readStoredTheme());
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
-  importError: null, installPrompt: null, online: navigator.onLine, section: initialSection,
+  importError: null, installPrompt: null, online: navigator.onLine, section: initialSection, theme: initialTheme.id,
 };
 
 const escapeHtml = (value = '') => String(value)
@@ -90,11 +93,17 @@ function renderActivity(activity) {
   const time = activityTime(activity);
   const details = renderDetails(activity);
   const mapUrl = placeUrl(activity);
+  const [image] = validStopImages(activity.images);
+  const imageMarkup = image ? `<figure class="stop-picture" data-stop-picture data-image-url="${escapeHtml(image.url || '')}" data-image-api-url="${escapeHtml(image.apiUrl || '')}" data-image-alt="${escapeHtml(image.alt)}">
+    <div class="stop-picture-frame" aria-busy="true"><span class="stop-picture-placeholder">Picture unavailable</span></div>
+    <figcaption ${image.caption || image.credit || image.sourceUrl ? '' : 'hidden'}>${image.caption ? `<span data-image-caption>${escapeHtml(image.caption)}</span>` : '<span data-image-caption></span>'}${image.credit ? `<span data-image-credit>Photo: ${escapeHtml(image.credit)}</span>` : '<span data-image-credit></span>'}${image.sourceUrl ? `<a data-image-source href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noopener noreferrer">Image source</a>` : '<a data-image-source target="_blank" rel="noopener noreferrer" hidden>Image source</a>'}</figcaption>
+  </figure>` : '';
   return `<article class="activity" data-activity-id="${escapeHtml(activity.id)}" data-testid="activity-item">
     <div class="activity-time">${time ? `<time${activity.startsAt ? ` datetime="${escapeHtml(activity.startsAt)}"` : ''}>${escapeHtml(time)}</time>` : '<span class="unscheduled">Any time</span>'}</div>
     <div class="activity-card">
       <p class="activity-type">${escapeHtml(firstValue(activity.type, activity.category, 'Activity'))}</p>
       <h3>${escapeHtml(activity.title)}</h3>
+      ${imageMarkup}
       <div class="activity-summary">
         ${activity.duration ? `<span>${escapeHtml(activity.duration)}</span>` : ''}
         ${typeof activity.location === 'string' ? `<span>${escapeHtml(activity.location)}</span>` : activity.location?.name ? `<span>${escapeHtml(activity.location.name)}</span>` : ''}
@@ -105,9 +114,20 @@ function renderActivity(activity) {
   </article>`;
 }
 
-function routeUrls(day) {
-  const stops = (day?.activities ?? []).map(activityLocation).filter(Boolean);
-  try { return buildGoogleMapsRouteUrls(stops, { travelMode: 'walking' }); } catch { return []; }
+function renderDayRoute(day) {
+  const stops = (day?.activities ?? []).flatMap((activity) => {
+    const location = activityLocation(activity);
+    if (!location) return [];
+    const label = typeof location === 'string' ? location : firstValue(location.name, location.address, activity.title);
+    const transport = activity.transport && (typeof activity.transport === 'string' ? activity.transport
+      : [activity.transport.mode, activity.transport.line].filter(Boolean).join(' · '));
+    return [{ title: activity.title, label, transport }];
+  });
+  if (!stops.length) return '';
+  return `<section id="day-route" class="day-route" aria-labelledby="day-route-title">
+    <div><p class="eyebrow">On this page</p><h3 id="day-route-title" tabindex="-1">Day route</h3><p>Stops are shown in itinerary order and remain available offline.</p></div>
+    <ol aria-label="Ordered day route">${stops.map((stop, index) => `<li><span class="route-marker" aria-hidden="true">${index + 1}</span><div><strong>${escapeHtml(stop.title)}</strong><span>${escapeHtml(stop.label)}</span>${stop.transport ? `<small>${escapeHtml(stop.transport)}</small>` : ''}</div></li>`).join('')}</ol>
+  </section>`;
 }
 
 function tripHash(trip, dayId = null) {
@@ -144,7 +164,19 @@ function schemaExportLink(className = 'button ghost') {
 function topbar() {
   return `<header class="topbar">
     <a class="brand" href="${escapeHtml(baseUrl.href)}" aria-label="All trips"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></a>
-    <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
+    <div class="topbar-actions">
+      <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
+      <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="app-menu" aria-label="Open app menu"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></button>
+    </div>
+    <div class="menu-backdrop" id="menu-backdrop" aria-hidden="true" hidden></div>
+    <nav class="app-menu" id="app-menu" aria-label="App menu" aria-hidden="true" hidden>
+      <div class="app-menu-heading"><strong>App menu</strong><button class="drawer-close" id="drawer-close" type="button" aria-label="Close app menu">&times;</button></div>
+      <label class="theme-control" for="theme-selector"><span>Theme</span><select id="theme-selector" aria-describedby="active-theme-status">${themes.map((theme) => `<option value="${theme.id}" ${theme.id === state.theme ? 'selected' : ''}>${theme.name}</option>`).join('')}</select></label>
+      <label class="menu-action import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>
+      ${schemaExportLink('menu-action')}
+      <button class="menu-action" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button>
+    </nav>
+    <span id="active-theme-status" class="sr-only" aria-live="polite">Active theme: ${escapeHtml(themes.find(({ id }) => id === state.theme)?.name)}</span>
   </header>`;
 }
 
@@ -219,7 +251,6 @@ async function renderCollection(savedTrips) {
     ${topbar()}
     <header class="collection-hero">
       <div><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
-      <div class="hero-actions"><label class="button primary import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>${schemaExportLink()}<button class="button ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${importErrorMarkup()}
@@ -246,22 +277,19 @@ function navigation(days, day) {
     <a class="trip-overview-link ${day ? '' : 'active'}" href="${escapeHtml(tripHash(state.trip))}" ${day ? '' : 'aria-current="page"'}>Trip overview</a>
     <h2>Days</h2>
     <nav class="day-nav" aria-label="Itinerary days">${days.map((item, index) => `<a class="day-button ${item.id === day?.id ? 'active' : ''}" href="${escapeHtml(tripHash(state.trip, item.id))}" ${item.id === day?.id ? 'aria-current="page"' : ''}><small>Day ${index + 1} · ${escapeHtml(item.date)}</small><span>${escapeHtml(item.title || item.date)}</span></a>`).join('')}</nav>
-    <label class="button subtle import-label">Import another trip<input id="trip-import" type="file" accept="application/json,.json"></label>
-    ${schemaExportLink('button subtle')}
   </aside>`;
 }
 
 async function renderTrip(savedTrips) {
   const days = tripDays(state.trip);
   const day = currentDay();
-  const routes = routeUrls(day);
   app.innerHTML = `<div class="app-shell">
     ${topbar()}
     <header class="hero"><div class="hero-content">
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
-      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button><button class="ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button></div>
+      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button></div>
     </div></header>
     <main class="layout" data-testid="primary-content">
       ${navigation(days, day)}
@@ -269,9 +297,10 @@ async function renderTrip(savedTrips) {
         ${importErrorMarkup()}
         ${day ? `<article class="day-panel">
           <header class="day-heading"><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">← Trip overview</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 data-testid="selected-day-title">${escapeHtml(day.title || day.date)}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
-            ${routes.length ? `<div class="day-toolbar">${routes.map((url, index) => `<a class="button subtle" data-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${routes.length > 1 ? `Route part ${index + 1}` : 'Open day route'} ↗</a>`).join('')}</div>` : ''}
+            ${renderDayRoute(day) ? '<div class="day-toolbar"><button class="button subtle" data-view-day-route type="button">View day route ↓</button></div>' : ''}
           </header>
           ${(day.activities ?? []).length ? `<div class="timeline">${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No fixed plans yet</strong>This day is open. Add an activity in the itinerary file when you are ready.</div>'}
+          ${renderDayRoute(day)}
         </article>` : `<article class="trip-overview" data-testid="trip-overview">
           <header><p class="eyebrow">At a glance</p><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day to see its complete itinerary.</p>'}</header>
           ${days.length ? `<ol class="overview-day-list">${days.map(dayPreview).join('')}</ol>` : '<section class="empty-card" data-testid="empty-itinerary"><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></section>'}
@@ -281,6 +310,7 @@ async function renderTrip(savedTrips) {
     ${bottomNavigation()}${noticeMarkup()}
   </div>`;
   bindCommon();
+  hydrateStopPictures();
 }
 
 async function render() {
@@ -360,10 +390,68 @@ function bindCommon() {
   document.querySelectorAll('[data-remove-country]').forEach((button) => button.addEventListener('click', async () => {
     countryHistory.remove(button.dataset.removeCountry); state.notice = 'Country removed from your travel history.'; await render();
   }));
+  const menu = document.querySelector('#app-menu');
+  const menuToggle = document.querySelector('#menu-toggle');
+  const backdrop = document.querySelector('#menu-backdrop');
+  let closeTimer;
+  const closeMenu = ({ restoreFocus = false } = {}) => {
+    if (!menu || !menuToggle || menu.hidden) return;
+    window.clearTimeout(closeTimer);
+    menu.classList.remove('open');
+    backdrop?.classList.remove('open');
+    menu.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('menu-open');
+    menuToggle.setAttribute('aria-expanded', 'false');
+    menuToggle.setAttribute('aria-label', 'Open app menu');
+    if (restoreFocus) menuToggle.focus();
+    closeTimer = window.setTimeout(() => {
+      if (!menu.classList.contains('open')) {
+        menu.hidden = true;
+        if (backdrop) backdrop.hidden = true;
+      }
+    }, 240);
+  };
+  menuToggle?.addEventListener('click', () => {
+    const opening = menu.hidden;
+    if (!opening) { closeMenu({ restoreFocus: true }); return; }
+    window.clearTimeout(closeTimer);
+    menu.hidden = false;
+    if (backdrop) backdrop.hidden = false;
+    document.body.classList.add('menu-open');
+    menuToggle.setAttribute('aria-expanded', 'true');
+    menuToggle.setAttribute('aria-label', 'Close app menu');
+    requestAnimationFrame(() => {
+      menu.classList.add('open');
+      backdrop?.classList.add('open');
+      menu.setAttribute('aria-hidden', 'false');
+      menu.querySelector('select, a, button, label')?.focus();
+    });
+  });
+  document.onkeydown = (event) => {
+    if (event.key === 'Escape') closeMenu({ restoreFocus: true });
+    if (event.key === 'Tab' && menu && !menu.hidden) {
+      const focusable = [...menu.querySelectorAll('select, a[href], button:not([hidden]), input:not([type="file"])')].filter((node) => !node.disabled);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  };
+  backdrop?.addEventListener('click', () => closeMenu({ restoreFocus: true }));
+  document.querySelector('#drawer-close')?.addEventListener('click', () => closeMenu({ restoreFocus: true }));
+  document.querySelector('#theme-selector')?.addEventListener('change', (event) => {
+    const active = applyTheme(event.currentTarget.value);
+    state.theme = active.id;
+    const status = document.querySelector('#active-theme-status');
+    if (status) status.textContent = `Active theme: ${active.name}`;
+    closeMenu({ restoreFocus: true });
+  });
   document.querySelectorAll('#trip-import').forEach((input) => input.addEventListener('change', (event) => {
     const [file] = event.target.files;
-    if (file) importFile(file);
+    if (file) { closeMenu(); importFile(file); }
   }));
+  document.querySelector('[data-schema-export]')?.addEventListener('click', () => closeMenu());
   document.querySelectorAll('[data-remove-trip]').forEach((button) => button.addEventListener('click', async () => {
     if (!window.confirm(`Remove ${button.closest('.trip-card')?.querySelector('h2')?.textContent || 'this trip'} from this device?`)) return;
     await store.deleteTrip(button.dataset.removeTrip, Number(button.dataset.removeRevision));
@@ -392,7 +480,65 @@ function bindCommon() {
     }
   });
   document.querySelector('#install-app')?.addEventListener('click', async () => {
-    await state.installPrompt?.prompt(); state.installPrompt = null; render();
+    closeMenu(); await state.installPrompt?.prompt(); state.installPrompt = null; render();
+  });
+}
+
+async function hydrateStopPictures() {
+  const saveData = navigator.connection?.saveData === true;
+  await Promise.all([...document.querySelectorAll('[data-stop-picture]')].map(async (figure) => {
+    let descriptor = {
+      url: figure.dataset.imageUrl || null,
+      apiUrl: figure.dataset.imageApiUrl || null,
+      alt: figure.dataset.imageAlt || '',
+    };
+    descriptor = await resolveStopImage(descriptor, { online: state.online });
+    const url = descriptor?.url;
+    const cached = await imageIsCached(url);
+    if (!descriptor || (!state.online && !cached) || (saveData && !cached)) {
+      figure.querySelector('.stop-picture-frame')?.setAttribute('aria-busy', 'false');
+      return;
+    }
+    const caption = figure.querySelector('[data-image-caption]');
+    const credit = figure.querySelector('[data-image-credit]');
+    const source = figure.querySelector('[data-image-source]');
+    if (descriptor.caption && caption && !caption.textContent) caption.textContent = descriptor.caption;
+    if (descriptor.credit && credit && !credit.textContent) credit.textContent = `Photo: ${descriptor.credit}`;
+    if (descriptor.sourceUrl && source && !source.getAttribute('href')) { source.href = descriptor.sourceUrl; source.hidden = false; }
+    const figcaption = figure.querySelector('figcaption');
+    if (figcaption && (caption?.textContent || credit?.textContent || !source?.hidden)) figcaption.hidden = false;
+    const frame = figure.querySelector('.stop-picture-frame');
+    if (!frame || !figure.isConnected) return;
+    const load = () => {
+      if (frame.querySelector('img')) return;
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = figure.dataset.imageAlt ?? '';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.crossOrigin = 'anonymous';
+      image.referrerPolicy = 'no-referrer';
+      image.width = 640;
+      image.height = 360;
+      image.addEventListener('load', () => { frame.classList.add('loaded'); frame.setAttribute('aria-busy', 'false'); });
+      image.addEventListener('error', () => {
+        image.remove();
+        frame.setAttribute('aria-busy', 'false');
+        navigator.serviceWorker?.controller?.postMessage({ type: 'PURGE_IMAGE', url });
+      });
+      frame.append(image);
+    };
+    if (!('IntersectionObserver' in window)) { load(); return; }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      load();
+    }, { rootMargin: '300px 0px' });
+    observer.observe(figure);
+  }));
+  document.querySelector('[data-view-day-route]')?.addEventListener('click', () => {
+    document.querySelector('#day-route')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    document.querySelector('#day-route-title')?.focus({ preventScroll: true });
   });
 }
 
