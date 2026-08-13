@@ -120,3 +120,20 @@ test('theme menu is keyboard-dismissable and keeps normalized actions inside the
   await page.waitForTimeout(250);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
+
+for (const viewport of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'mobile', width: 390, height: 844 }]) {
+  test(`drawer fills the ${viewport.name} viewport and exposes every persistent control`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openTrip(page);
+    await openAppMenu(page);
+    const drawer = page.getByRole('navigation', { name: 'App menu' });
+    const box = await drawer.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.y).toBeLessThanOrEqual(1);
+    expect(box.height).toBeGreaterThanOrEqual(viewport.height - 2);
+    expect(box.x + box.width).toBeGreaterThanOrEqual(viewport.width - 1);
+    await expect(page.getByLabel('Theme')).toBeVisible();
+    await expect(page.getByText('Import itinerary JSON', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Export JSON schema' })).toBeVisible();
+  });
+}
