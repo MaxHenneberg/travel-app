@@ -110,12 +110,13 @@ function validateActivity(activity, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with an activity object.`));
     return;
   }
-  rejectUnknownProperties(activity, new Set(['id', 'title', 'startsAt', 'endsAt', 'category', 'location', 'notes', 'images']), path, errors);
+  rejectUnknownProperties(activity, new Set(['id', 'title', 'startsAt', 'endsAt', 'category', 'location', 'countryCode', 'notes', 'images']), path, errors);
   requiredString(activity.id, `${path}/id`, errors);
   requiredString(activity.title, `${path}/title`, errors);
   requiredDateTime(activity.startsAt, `${path}/startsAt`, errors);
   if (activity.endsAt !== undefined) requiredDateTime(activity.endsAt, `${path}/endsAt`, errors);
   optionalString(activity.category, `${path}/category`, errors);
+  optionalString(activity.countryCode, `${path}/countryCode`, errors);
   optionalString(activity.location, `${path}/location`, errors);
   optionalString(activity.notes, `${path}/notes`, errors);
   if (activity.images !== undefined) validateImages(activity.images, `${path}/images`, errors);
@@ -132,10 +133,11 @@ function validateDay(day, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with a day object.`));
     return;
   }
-  rejectUnknownProperties(day, new Set(['id', 'date', 'title', 'activities']), path, errors);
+  rejectUnknownProperties(day, new Set(['id', 'date', 'title', 'countryCode', 'activities']), path, errors);
   requiredString(day.id, `${path}/id`, errors);
   requiredDate(day.date, `${path}/date`, errors);
   optionalString(day.title, `${path}/title`, errors);
+  optionalString(day.countryCode, `${path}/countryCode`, errors);
   if (!Array.isArray(day.activities)) {
     errors.push(issue(`${path}/activities`, 'invalid_type', 'must be an array.', 'Use an empty array when the day has no activities.'));
     return;
@@ -149,7 +151,7 @@ function validateFlatLocation(location, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Set ${path} to an object with a name and optional coordinates or placeId.`));
     return;
   }
-  rejectUnknownProperties(location, new Set(['name', 'address', 'lat', 'lng', 'placeId']), path, errors);
+  rejectUnknownProperties(location, new Set(['name', 'address', 'lat', 'lng', 'placeId', 'countryCode']), path, errors);
   const hasLabel = [location.name, location.address, location.placeId].some((value) => typeof value === 'string' && value.trim() !== '');
   const hasCoordinates = Number.isFinite(location.lat) && Number.isFinite(location.lng);
   if (!hasLabel && !hasCoordinates) {
@@ -164,6 +166,7 @@ function validateFlatLocation(location, path, errors) {
   }
   optionalString(location.address, `${path}/address`, errors);
   optionalString(location.placeId, `${path}/placeId`, errors);
+  optionalString(location.countryCode, `${path}/countryCode`, errors);
 }
 
 function validateFlatActivity(activity, path, errors) {
@@ -171,10 +174,11 @@ function validateFlatActivity(activity, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with an activity object.`));
     return;
   }
-  rejectUnknownProperties(activity, new Set(['id', 'time', 'duration', 'title', 'type', 'description', 'notes', 'reservation', 'cost', 'transport', 'location', 'links', 'images']), path, errors);
+  rejectUnknownProperties(activity, new Set(['id', 'time', 'duration', 'title', 'type', 'description', 'notes', 'reservation', 'cost', 'transport', 'location', 'countryCode', 'links', 'images']), path, errors);
   requiredString(activity.id, `${path}/id`, errors);
   requiredString(activity.title, `${path}/title`, errors);
   for (const field of ['time', 'duration', 'type', 'description', 'notes', 'reservation']) optionalString(activity[field], `${path}/${field}`, errors);
+  optionalString(activity.countryCode, `${path}/countryCode`, errors);
   if (activity.cost !== undefined && typeof activity.cost !== 'string' && typeof activity.cost !== 'number') {
     errors.push(issue(`${path}/cost`, 'invalid_type', 'must be a string or number.', 'Use a display value such as "€20" or a numeric amount.'));
   }
@@ -211,7 +215,7 @@ function validateFlatActivity(activity, path, errors) {
 
 function inspectFlatItinerary(value) {
   const errors = [];
-  rejectUnknownProperties(value, new Set(['schemaVersion', 'id', 'revision', 'title', 'destination', 'dateRange', 'summary', 'days']), '', errors);
+  rejectUnknownProperties(value, new Set(['schemaVersion', 'id', 'revision', 'title', 'destination', 'dateRange', 'summary', 'countryCode', 'days']), '', errors);
   if (value.schemaVersion !== 1) {
     errors.push(issue('/schemaVersion', 'unsupported_version', `must be 1; received ${JSON.stringify(value.schemaVersion)}.`, 'Export or migrate this itinerary to schema version 1.'));
   }
@@ -223,6 +227,7 @@ function inspectFlatItinerary(value) {
   optionalString(value.destination, '/destination', errors);
   optionalString(value.dateRange, '/dateRange', errors);
   optionalString(value.summary, '/summary', errors);
+  optionalString(value.countryCode, '/countryCode', errors);
   if (!Array.isArray(value.days)) {
     errors.push(issue('/days', 'invalid_type', 'must be an array.', 'Use an empty array when the itinerary has no days.'));
   } else {
@@ -233,11 +238,12 @@ function inspectFlatItinerary(value) {
         errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with a day object.`));
         return;
       }
-      rejectUnknownProperties(day, new Set(['id', 'date', 'title', 'summary', 'activities']), path, errors);
+      rejectUnknownProperties(day, new Set(['id', 'date', 'title', 'summary', 'countryCode', 'activities']), path, errors);
       requiredString(day.id, `${path}/id`, errors);
       requiredString(day.date, `${path}/date`, errors);
       optionalString(day.title, `${path}/title`, errors);
       optionalString(day.summary, `${path}/summary`, errors);
+      optionalString(day.countryCode, `${path}/countryCode`, errors);
       if (!Array.isArray(day.activities)) {
         errors.push(issue(`${path}/activities`, 'invalid_type', 'must be an array.', 'Use an empty array when the day has no activities.'));
       } else {
@@ -275,13 +281,14 @@ export function inspectItinerary(value, { supportedVersion = ITINERARY_SCHEMA_VE
   }
 
   const { trip } = value;
-  rejectUnknownProperties(trip, new Set(['id', 'title', 'summary', 'startDate', 'endDate', 'timeZone', 'days']), '/trip', errors);
+  rejectUnknownProperties(trip, new Set(['id', 'title', 'summary', 'startDate', 'endDate', 'timeZone', 'countryCode', 'days']), '/trip', errors);
   requiredString(trip.id, '/trip/id', errors);
   requiredString(trip.title, '/trip/title', errors);
   optionalString(trip.summary, '/trip/summary', errors);
   requiredDate(trip.startDate, '/trip/startDate', errors);
   requiredDate(trip.endDate, '/trip/endDate', errors);
   requiredString(trip.timeZone, '/trip/timeZone', errors);
+  optionalString(trip.countryCode, '/trip/countryCode', errors);
 
   if (validDate(trip.startDate ?? '') && validDate(trip.endDate ?? '') && trip.endDate < trip.startDate) {
     errors.push(issue('/trip/endDate', 'invalid_range', 'must not be before startDate.', 'Move endDate to the same day as or after startDate.'));
