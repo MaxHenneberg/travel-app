@@ -46,7 +46,31 @@
         "endsAt": { "type": "string", "format": "date-time" },
         "category": { "type": "string", "minLength": 1 },
         "location": { "type": "string", "minLength": 1 },
-        "notes": { "type": "string", "minLength": 1 }
+        "notes": { "type": "string", "minLength": 1 },
+        "images": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/image" }
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alt"],
+      "oneOf": [
+        { "properties": { "url": {} }, "required": ["url"] },
+        { "properties": { "provider": {}, "commonsFile": {} }, "required": ["provider", "commonsFile"] },
+        { "properties": { "provider": {}, "commonsQuery": {} }, "required": ["provider", "commonsQuery"] }
+      ],
+      "properties": {
+        "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "provider": { "const": "wikimediaCommons" },
+        "commonsFile": { "type": "string", "minLength": 1 },
+        "commonsQuery": { "type": "string", "minLength": 1 },
+        "alt": { "type": "string" },
+        "caption": { "type": "string", "minLength": 1 },
+        "credit": { "type": "string", "minLength": 1 },
+        "sourceUrl": { "type": "string", "format": "uri", "pattern": "^https://" }
       }
     }
   }
