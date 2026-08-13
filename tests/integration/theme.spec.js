@@ -13,6 +13,7 @@ async function openAppMenu(page) {
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByRole('navigation', { name: 'App menu' })).toBeVisible();
+  await expect(page.locator('#menu-backdrop')).toBeVisible();
 }
 
 async function tokenSnapshot(page) {
@@ -111,8 +112,11 @@ test('theme menu is keyboard-dismissable and keeps normalized actions inside the
   expect(new Set(boxes.map(({ height }) => height)).size).toBe(1);
   expect(new Set(boxes.map(({ radius }) => radius)).size).toBe(1);
   expect(new Set(boxes.map(({ weight }) => weight)).size).toBe(1);
+  await expect(page.locator('#app-menu')).toHaveCSS('position', 'fixed');
+  await expect(page.locator('#app-menu')).toHaveCSS('right', '0px');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Open app menu' })).toBeFocused();
   await expect(page.getByRole('navigation', { name: 'App menu' })).toBeHidden();
+  await page.waitForTimeout(250);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
