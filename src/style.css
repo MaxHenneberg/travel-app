@@ -89,7 +89,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   padding: .75rem clamp(1rem, 4vw, 3rem);
   color: var(--cream);
   background: var(--color-header);
-  backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--overlay-border);
 }
 .topbar-actions { display: flex; align-items: center; gap: 1rem; }
