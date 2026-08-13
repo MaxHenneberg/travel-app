@@ -1,5 +1,5 @@
 {
-  "stories": ["TRAVEL-3", "TRAVEL-4", "TRAVEL-5", "TRAVEL-6", "TRAVEL-7", "TRAVEL-8", "TRAVEL-9", "TRAVEL-10", "TRAVEL-11", "TRAVEL-50", "TRAVEL-55", "TRAVEL-60", "TRAVEL-89"],
+  "stories": ["TRAVEL-3", "TRAVEL-4", "TRAVEL-5", "TRAVEL-6", "TRAVEL-7", "TRAVEL-8", "TRAVEL-9", "TRAVEL-10", "TRAVEL-11", "TRAVEL-50", "TRAVEL-55", "TRAVEL-60", "TRAVEL-80", "TRAVEL-89"],
   "cases": [
     { "id": "TA-TRAVEL-89-01", "jiraKey": "TRAVEL-90", "story": "TRAVEL-89", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] },
     { "id": "TA-TRAVEL-89-02", "jiraKey": "TRAVEL-91", "story": "TRAVEL-89", "execution": ["pull-request", "post-deploy"], "profiles": ["android-chrome"] },
@@ -40,6 +40,10 @@
     { "id": "TA-TRAVEL-55-03", "jiraKey": "TRAVEL-58", "story": "TRAVEL-55", "execution": ["pull-request", "post-deploy"], "profiles": ["chromium", "android-chrome"] },
     { "id": "TA-TRAVEL-55-04", "jiraKey": "TRAVEL-59", "story": "TRAVEL-55", "execution": ["pull-request", "post-deploy"], "profiles": ["chromium", "android-chrome"] },
     { "id": "TA-TRAVEL-60-01", "jiraKey": "TRAVEL-61", "story": "TRAVEL-60", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] },
-    { "id": "TA-TRAVEL-60-02", "jiraKey": "TRAVEL-62", "story": "TRAVEL-60", "execution": ["pull-request"], "profiles": ["chromium"] }
+    { "id": "TA-TRAVEL-60-02", "jiraKey": "TRAVEL-62", "story": "TRAVEL-60", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-80-01", "jiraKey": "TRAVEL-86", "story": "TRAVEL-80", "execution": ["pull-request"], "profiles": ["chromium"] },
+    { "id": "TA-TRAVEL-80-02", "jiraKey": "TRAVEL-85", "story": "TRAVEL-80", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-80-03", "jiraKey": "TRAVEL-84", "story": "TRAVEL-80", "execution": ["pull-request"], "profiles": ["android-chrome"] },
+    { "id": "TA-TRAVEL-80-04", "jiraKey": "TRAVEL-87", "story": "TRAVEL-80", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] }
   ]
 }

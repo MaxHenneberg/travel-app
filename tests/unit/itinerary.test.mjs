@@ -7,6 +7,7 @@ import { validateItinerary } from '../../src/itinerary/validate.js';
 
 const schema = JSON.parse(await readFile(new URL('../../public/data/schemas/itinerary.v1.schema.json', import.meta.url)));
 const fixture = JSON.parse(await readFile(new URL('../../public/data/itineraries/example.v1.json', import.meta.url)));
+const japanFixture = JSON.parse(await readFile(new URL('../../public/data/itineraries/Japan_2026.itinerary.json', import.meta.url)));
 
 test('accepts the bundled v1 fixture and omitted optional fields', () => {
   const minimal = structuredClone(fixture);
@@ -14,6 +15,37 @@ test('accepts the bundled v1 fixture and omitted optional fields', () => {
   delete minimal.trip.days[0].title;
   delete minimal.trip.days[0].activities[0].category;
   assert.equal(validateItinerary(minimal, schema), minimal);
+});
+
+test('accepts optional secure image metadata and rejects unsafe entries', () => {
+  const withImages = structuredClone(fixture);
+  withImages.trip.days[0].activities[0].images = [{
+    url: 'https://images.example/place.jpg',
+    alt: 'A city square',
+    caption: 'At sunrise',
+    credit: 'Example photographer',
+    sourceUrl: 'https://images.example/source',
+  }];
+  assert.equal(validateItinerary(withImages, schema), withImages);
+
+  const commons = structuredClone(withImages);
+  commons.trip.days[0].activities[0].images[0] = { provider: 'wikimediaCommons', commonsFile: 'Example.jpg', alt: 'Example' };
+  assert.equal(validateItinerary(commons, schema), commons);
+
+  const insecure = structuredClone(withImages);
+  insecure.trip.days[0].activities[0].images[0].url = 'http://images.example/place.jpg';
+  assert.throws(() => validateItinerary(insecure, schema), (error) => error.path.endsWith('/images/0/url'));
+
+  const incomplete = structuredClone(withImages);
+  delete incomplete.trip.days[0].activities[0].images[0].alt;
+  assert.throws(() => validateItinerary(incomplete, schema), (error) => error.path.endsWith('/images/0/alt'));
+});
+
+test('bundled Japan source references Wikimedia Commons without an API key', () => {
+  const sensoji = japanFixture.stops[0].days[1].items.find((item) => item.id === 'tokyo-2026-09-07-sensoji');
+  assert.deepEqual(sensoji.images, [{
+    provider: 'wikimediaCommons', commonsQuery: 'Sensō-ji temple Tokyo pagoda', alt: 'Sensō-ji temple gate and pagoda',
+  }]);
 });
 
 test('reports a missing required field using its JSON path', () => {

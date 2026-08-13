@@ -1,6 +1,6 @@
 # Trailbook travel app
 
-An offline-first, installable travel itinerary for Android and the web. Trailbook renders versioned JSON itineraries, keeps downloaded and imported trips on-device, opens ordered places and routes in Google Maps, and shares immutable GitHub Pages-safe deep links.
+An offline-first, installable travel itinerary for Android and the web. Trailbook renders versioned JSON itineraries, keeps downloaded and imported trips on-device, shows ordered day routes in the app, opens individual places in Google Maps, and shares immutable GitHub Pages-safe deep links.
 
 ## Local development
 
@@ -37,6 +37,8 @@ Route identifiers are restricted to safe path characters. Every fetched or local
 ## Offline and installation
 
 The repository-scoped web manifest and service worker make the deployed app installable and cache the application shell plus successfully loaded same-origin resources. Itineraries are retained by immutable revision in IndexedDB, with graceful local fallbacks. A trip must be opened online once before its deep link can be reopened offline.
+
+Optional stop pictures use either HTTPS metadata or the keyless Wikimedia Commons provider (`provider: "wikimediaCommons"` with one `commonsFile` or precise `commonsQuery`, plus required `alt`). Commons references resolve near the viewport through the official CORS-enabled MediaWiki API (`origin=*`); the thumbnail, description, creator credit, and Commons source page are read from `imageinfo`/`extmetadata`. Resolved metadata is retained in a 48-entry app cache for offline reuse. Pictures are skipped when data saving is enabled, use a no-referrer policy, reserve a 16:9 layout area, and degrade to a stable placeholder. Successfully decoded image responses are kept in `trailbook-stop-images-v1`, capped at 24 entries, 5 MiB per image, and 32 MiB total with deterministic oldest-first eviction. Failed, non-image, opaque, and oversized responses are not retained. Offline rendering never calls the Commons API: it uses cached metadata and image responses when both exist, otherwise it keeps the placeholder without a network attempt.
 
 ## GitHub and Jira reporting
 
