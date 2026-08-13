@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="sakura">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,6 +9,16 @@
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <link rel="apple-touch-icon" href="%BASE_URL%icons/travel-192.png" />
     <title>Trailbook</title>
+    <script>
+      (() => {
+        const supported = new Set(['sakura', 'neon-japan']);
+        let stored;
+        try { stored = localStorage.getItem('trailbook.theme'); } catch { /* Use the bundled default. */ }
+        const theme = supported.has(stored) ? stored : 'sakura';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme === 'neon-japan' ? 'dark' : 'light';
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
