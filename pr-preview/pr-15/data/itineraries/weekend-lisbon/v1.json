@@ -22,6 +22,7 @@
           "notes": "Door code is in the reservation app.\nAsk about the quiet route to the viewpoint.",
           "reservation": "Confirmation LIS-4821",
           "cost": "€184 prepaid",
+          "images": [{ "provider": "wikimediaCommons", "commonsFile": "Lissabon - Santa Luzia - Alfama - 1.jpg", "alt": "View across Alfama from Miradouro de Santa Luzia" }],
           "location": { "name": "Miradouro de Santa Luzia", "lat": 38.7116, "lng": -9.1302 },
           "links": [{ "label": "Reservation details", "url": "https://example.com/reservation/LIS-4821" }]
         },
@@ -32,6 +33,7 @@
           "title": "Ride tram 28 to Graça",
           "type": "Transport",
           "transport": { "mode": "Tram", "line": "28E", "from": "Sé", "to": "Graça", "platform": "Street stop" },
+          "images": [{ "provider": "wikimediaCommons", "commonsFile": "Tram 28 Lisbon Portuguese.jpg", "alt": "Yellow tram 28 travelling through Lisbon" }],
           "location": { "name": "Graça, Lisbon", "lat": 38.7174, "lng": -9.1307 }
         },
         {
@@ -39,6 +41,7 @@
           "title": "Choose dinner in Alfama",
           "type": "Flexible",
           "description": "Pick somewhere lively on the walk back; no reservation needed.",
+          "images": [{ "provider": "wikimediaCommons", "commonsFile": "Alfama, Lisbon (DSC03367).jpg", "alt": "Historic street in Lisbon's Alfama district" }],
           "location": { "name": "Alfama, Lisbon", "lat": 38.7112, "lng": -9.1294 }
         }
       ]
@@ -56,6 +59,7 @@
           "title": "Jerónimos Monastery",
           "type": "Visit",
           "description": "Arrive near opening; the cloister ticket is timed.",
+          "images": [{ "provider": "wikimediaCommons", "commonsQuery": "Jerónimos Monastery Lisbon exterior", "alt": "Jerónimos Monastery in Belém" }],
           "location": { "name": "Jerónimos Monastery", "placeId": "ChIJ98mRe6Q0GQ0R8sj4G6B0yPQ" }
         },
         {
@@ -71,6 +75,7 @@
           "duration": "90 min",
           "title": "MAAT riverside galleries",
           "type": "Museum",
+          "images": [{ "provider": "wikimediaCommons", "commonsQuery": "MAAT museum Lisbon riverfront", "alt": "MAAT beside the Tagus river" }],
           "location": { "name": "MAAT Lisbon", "lat": 38.6959, "lng": -9.1947 }
         }
       ]
