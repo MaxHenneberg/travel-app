@@ -21,7 +21,7 @@ test('TA-TRAVEL-89-01 @pr attaches and accesses files at trip, day, and stop sco
   await expect(stopPanel.locator('.attachment-name')).toHaveText('notes.txt');
   page.once('dialog', (dialog) => dialog.accept('Tram ticket')); await stopPanel.getByRole('button', { name: 'Edit label' }).click();
   await expect(stopPanel.getByText('Tram ticket')).toBeVisible();
-  await expect(stopPanel.getByRole('button', { name: 'Add files to Stop documents' })).toHaveCSS('min-height', '44px');
+  await expect(stopPanel.getByRole('button', { name: 'Upload files to Stop documents' })).toHaveAttribute('title', 'Upload files');
   const actionHeight = await stopPanel.getByRole('button', { name: 'Share or download notes.txt' })
     .evaluate((element) => element.getBoundingClientRect().height);
   expect(actionHeight).toBeGreaterThanOrEqual(44);
