@@ -7,10 +7,18 @@ async function openTrip(page) {
   await expect(page.getByTestId('selected-day-title')).toBeVisible();
 }
 
+async function openAppMenu(page) {
+  const toggle = page.locator('#menu-toggle');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('navigation', { name: 'App menu' })).toBeVisible();
+}
+
 async function tokenSnapshot(page) {
   return page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
-    const tokens = ['background', 'surface', 'text', 'text-muted', 'primary', 'accent', 'border', 'focus', 'success', 'warning', 'error'];
+    const tokens = ['background', 'surface', 'text', 'text-muted', 'primary', 'accent', 'border', 'focus', 'success', 'warning', 'error', 'header', 'header-accent'];
     return Object.fromEntries(tokens.map((token) => [token, style.getPropertyValue(`--color-${token}`).trim()]));
   });
 }
@@ -31,6 +39,7 @@ test('TA-TRAVEL-55-01 @pr @post-deploy switches in place and restores the theme 
   const details = page.locator('[data-activity-id="check-in"] details');
   await details.locator('summary').click();
   const url = page.url();
+  await openAppMenu(page);
   await page.getByLabel('Theme').selectOption('neon-japan');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'neon-japan');
   await expect(page.locator('#active-theme-status')).toContainText('Active theme: Neon Japan');
@@ -48,11 +57,14 @@ test('TA-TRAVEL-55-01 @pr @post-deploy switches in place and restores the theme 
 test('TA-TRAVEL-55-02 @pr @post-deploy renders Sakura with complete accessible semantic tokens', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('trailbook.theme', 'sakura'));
   await openTrip(page);
+  await openAppMenu(page);
   const tokens = await tokenSnapshot(page);
   expect(Object.values(tokens).every(Boolean)).toBeTruthy();
   expect(contrast(tokens.text, tokens.background)).toBeGreaterThanOrEqual(4.5);
   expect(contrast(tokens['text-muted'], tokens.surface)).toBeGreaterThanOrEqual(4.5);
   expect(contrast(tokens['primary'], tokens.surface)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(tokens.border, tokens.surface)).toBeGreaterThanOrEqual(3);
+  expect(contrast(tokens['header-accent'], tokens.header)).toBeGreaterThanOrEqual(4.5);
   await expect(page.locator('.activity-card').first()).toHaveCSS('background-color', 'rgb(255, 253, 251)');
   await page.getByLabel('Theme').focus();
   expect(await page.getByLabel('Theme').evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none');
@@ -66,6 +78,8 @@ test('TA-TRAVEL-55-03 @pr @post-deploy renders Neon Japan with complete accessib
   expect(contrast(tokens.text, tokens.background)).toBeGreaterThanOrEqual(4.5);
   expect(contrast(tokens['text-muted'], tokens.surface)).toBeGreaterThanOrEqual(4.5);
   expect(contrast(tokens.primary, tokens.surface)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(tokens.border, tokens.surface)).toBeGreaterThanOrEqual(3);
+  expect(contrast(tokens['header-accent'], tokens.header)).toBeGreaterThanOrEqual(4.5);
   await expect(page.locator('.activity-card').first()).toHaveCSS('background-color', 'rgb(17, 24, 42)');
   await expect(page.locator('.network')).toHaveCSS('color', 'rgb(189, 200, 220)');
 });
@@ -76,9 +90,29 @@ test('TA-TRAVEL-55-04 @pr @post-deploy falls back before rendering for unsupport
     localStorage.setItem('unrelated-itinerary-marker', 'unchanged');
   });
   await openTrip(page);
+  await openAppMenu(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'sakura');
   await expect(page.getByLabel('Theme')).toHaveValue('sakura');
   expect(await page.evaluate(() => localStorage.getItem('trailbook.theme'))).toBe('sakura');
   expect(await page.evaluate(() => localStorage.getItem('unrelated-itinerary-marker'))).toBe('unchanged');
   await expect(page.getByTestId('selected-day-title')).toBeVisible();
+});
+
+test('theme menu is keyboard-dismissable and keeps normalized actions inside the viewport', async ({ page }) => {
+  await openTrip(page);
+  await openAppMenu(page);
+  const actions = page.locator('#app-menu select, #app-menu .menu-action');
+  const boxes = await actions.evaluateAll((nodes) => nodes.filter((node) => !node.hidden).map((node) => {
+    const box = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return { height: box.height, left: box.left, right: box.right, radius: style.borderRadius, weight: style.fontWeight };
+  }));
+  expect(boxes.every(({ height }) => height >= 44)).toBeTruthy();
+  expect(new Set(boxes.map(({ height }) => height)).size).toBe(1);
+  expect(new Set(boxes.map(({ radius }) => radius)).size).toBe(1);
+  expect(new Set(boxes.map(({ weight }) => weight)).size).toBe(1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Open app menu' })).toBeFocused();
+  await expect(page.getByRole('navigation', { name: 'App menu' })).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });

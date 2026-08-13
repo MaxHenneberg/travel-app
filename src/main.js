@@ -194,10 +194,16 @@ function topbar() {
   return `<header class="topbar">
     <a class="brand" href="${escapeHtml(baseUrl.href)}" aria-label="All trips"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></a>
     <div class="topbar-actions">
-      <label class="theme-control" for="theme-selector"><span>Theme</span><select id="theme-selector" aria-label="Theme" aria-describedby="active-theme-status">${themes.map((theme) => `<option value="${theme.id}" ${theme.id === state.theme ? 'selected' : ''}>${theme.name}</option>`).join('')}</select></label>
       <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
+      <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="app-menu" aria-label="Open app menu"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></button>
     </div>
-    <span id="active-theme-status" class="sr-only" role="status" aria-live="polite">Active theme: ${escapeHtml(themes.find(({ id }) => id === state.theme)?.name)}</span>
+    <nav class="app-menu" id="app-menu" aria-label="App menu" hidden>
+      <label class="theme-control" for="theme-selector"><span>Theme</span><select id="theme-selector" aria-describedby="active-theme-status">${themes.map((theme) => `<option value="${theme.id}" ${theme.id === state.theme ? 'selected' : ''}>${theme.name}</option>`).join('')}</select></label>
+      <label class="menu-action import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>
+      ${schemaExportLink('menu-action')}
+      <button class="menu-action" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button>
+    </nav>
+    <span id="active-theme-status" class="sr-only" aria-live="polite">Active theme: ${escapeHtml(themes.find(({ id }) => id === state.theme)?.name)}</span>
   </header>`;
 }
 
@@ -218,7 +224,6 @@ async function renderCollection(savedTrips) {
     ${topbar()}
     <header class="collection-hero">
       <div><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
-      <div class="hero-actions"><label class="button primary import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>${schemaExportLink()}<button class="button ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${importErrorMarkup()}
@@ -245,8 +250,6 @@ function navigation(days, day) {
     <a class="trip-overview-link ${day ? '' : 'active'}" href="${escapeHtml(tripHash(state.trip))}" ${day ? '' : 'aria-current="page"'}>Trip overview</a>
     <h2>Days</h2>
     <nav class="day-nav" aria-label="Itinerary days">${days.map((item, index) => `<a class="day-button ${item.id === day?.id ? 'active' : ''}" href="${escapeHtml(tripHash(state.trip, item.id))}" ${item.id === day?.id ? 'aria-current="page"' : ''}><small>Day ${index + 1} · ${escapeHtml(item.date)}</small><span>${escapeHtml(item.title || item.date)}</span></a>`).join('')}</nav>
-    <label class="button subtle import-label">Import another trip<input id="trip-import" type="file" accept="application/json,.json"></label>
-    ${schemaExportLink('button subtle')}
   </aside>`;
 }
 
@@ -260,7 +263,7 @@ async function renderTrip(savedTrips) {
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
-      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button><button class="ghost" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button></div>
+      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button></div>
     </div></header>
     <main class="layout" data-testid="primary-content">
       ${navigation(days, day)}
@@ -397,16 +400,40 @@ async function addAttachments(input) {
 }
 
 function bindCommon() {
+  const menu = document.querySelector('#app-menu');
+  const menuToggle = document.querySelector('#menu-toggle');
+  const closeMenu = ({ restoreFocus = false } = {}) => {
+    if (!menu || !menuToggle || menu.hidden) return;
+    menu.hidden = true;
+    menuToggle.setAttribute('aria-expanded', 'false');
+    menuToggle.setAttribute('aria-label', 'Open app menu');
+    if (restoreFocus) menuToggle.focus();
+  };
+  menuToggle?.addEventListener('click', () => {
+    const opening = menu.hidden;
+    menu.hidden = !opening;
+    menuToggle.setAttribute('aria-expanded', String(opening));
+    menuToggle.setAttribute('aria-label', opening ? 'Close app menu' : 'Open app menu');
+    if (opening) menu.querySelector('select, a, button, label')?.focus();
+  });
+  document.onkeydown = (event) => {
+    if (event.key === 'Escape') closeMenu({ restoreFocus: true });
+  };
+  document.onclick = (event) => {
+    if (!event.target.closest('.topbar')) closeMenu();
+  };
   document.querySelector('#theme-selector')?.addEventListener('change', (event) => {
     const active = applyTheme(event.currentTarget.value);
     state.theme = active.id;
     const status = document.querySelector('#active-theme-status');
     if (status) status.textContent = `Active theme: ${active.name}`;
+    closeMenu({ restoreFocus: true });
   });
   document.querySelectorAll('#trip-import').forEach((input) => input.addEventListener('change', (event) => {
     const [file] = event.target.files;
-    if (file) importFile(file);
+    if (file) { closeMenu(); importFile(file); }
   }));
+  document.querySelector('[data-schema-export]')?.addEventListener('click', () => closeMenu());
   document.querySelectorAll('[data-remove-trip]').forEach((button) => button.addEventListener('click', async () => {
     if (!window.confirm(`Remove ${button.closest('.trip-card')?.querySelector('h2')?.textContent || 'this trip'} from this device?`)) return;
     try { await attachmentStore.removeTrip(button.dataset.removeTrip); }
@@ -462,7 +489,7 @@ function bindCommon() {
     }
   });
   document.querySelector('#install-app')?.addEventListener('click', async () => {
-    await state.installPrompt?.prompt(); state.installPrompt = null; render();
+    closeMenu(); await state.installPrompt?.prompt(); state.installPrompt = null; render();
   });
 }
 

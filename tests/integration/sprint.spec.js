@@ -22,6 +22,11 @@ async function openSample(page, day = 'arrival') {
   await expect(page.getByRole('heading', { name: 'A long weekend in Lisbon' })).toBeVisible();
 }
 
+async function openAppMenu(page) {
+  await page.getByRole('button', { name: 'Open app menu' }).click();
+  await expect(page.getByRole('navigation', { name: 'App menu' })).toBeVisible();
+}
+
 async function prepareOffline(page, context, heading = 'A long weekend in Lisbon') {
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
   await page.reload();
@@ -242,6 +247,7 @@ test('TA-TRAVEL-50-04 @pr shares the canonical revision and day URL on Android',
 test('TA-TRAVEL-60-01 @pr exports the supported schema from every import surface at Android width', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Your trips' })).toBeVisible();
+  await openAppMenu(page);
 
   const collectionExport = page.getByRole('link', { name: 'Export JSON schema' });
   const collectionHref = await collectionExport.getAttribute('href');
@@ -260,6 +266,7 @@ test('TA-TRAVEL-60-01 @pr exports the supported schema from every import surface
   expect(schema.properties.schemaVersion.const).toBe('1.0.0');
 
   await openSample(page, '');
+  await openAppMenu(page);
   const itineraryExport = page.getByRole('link', { name: 'Export JSON schema' });
   await expect(itineraryExport).toHaveAttribute('href', collectionHref);
   await expect(itineraryExport).toHaveAttribute('download', 'trailbook-itinerary-schema-v1.json');
