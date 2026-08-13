@@ -3,16 +3,19 @@ import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './l
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
+import { createAttachmentStore } from './lib/attachment-store.js';
 import { imageIsCached, resolveStopImage, validStopImages } from './lib/stop-images.js';
 import { applyTheme, readStoredTheme, themes } from './lib/theme.js';
 
 const app = document.querySelector('#app');
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
+const attachmentStore = createAttachmentStore();
 const initialTheme = applyTheme(readStoredTheme());
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
-  importError: null, installPrompt: null, online: navigator.onLine, theme: initialTheme.id,
+  importError: null, installPrompt: null, online: navigator.onLine, theme: initialTheme.id, attachments: new Map(),
+  attachmentUsage: { bytes: 0, count: 0, limitBytes: attachmentStore.limits.totalBytes }, attachmentError: '', focusAfterRender: '',
 };
 
 const escapeHtml = (value = '') => String(value)
@@ -65,6 +68,54 @@ function placeUrl(activity) {
   } catch { return null; }
 }
 
+function attachmentScopeKey(scope) { return `${scope.tripId}:${scope.type}:${scope.ownerId}`; }
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+const attachmentIcon = (name) => ({
+  upload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>',
+  open: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>',
+  remove: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg>',
+}[name]);
+
+function attachmentPanel(scope, heading) {
+  const key = attachmentScopeKey(scope);
+  const records = state.attachments.get(key) ?? [];
+  return `<section class="attachments" data-attachment-scope="${escapeHtml(key)}" aria-label="${escapeHtml(heading)}">
+    <div class="attachment-heading"><div><span class="attachment-title">${escapeHtml(heading)}</span><span class="attachment-status">Local · offline</span></div>
+      <div class="attachment-picker-wrap"><button class="attachment-picker" type="button" data-attachment-trigger aria-label="Upload files to ${escapeHtml(heading)}" title="Upload files">${attachmentIcon('upload')}</button><input class="sr-only" type="file" multiple data-attachment-input data-trip-id="${escapeHtml(scope.tripId)}" data-scope-type="${escapeHtml(scope.type)}" data-owner-id="${escapeHtml(scope.ownerId)}"></div>
+    </div>
+    <p class="attachment-privacy sr-only">Documents stay in this browser profile and never sync or upload. They may contain personal information and are protected by your device—not by app-level encryption.</p>
+    ${records.length ? `<ul class="attachment-list">${records.map((item) => `<li class="attachment-item" data-attachment-id="${escapeHtml(item.id)}">
+      <div class="attachment-copy"><strong class="attachment-name">${escapeHtml(item.name)}</strong><span class="attachment-label sr-only">${escapeHtml(item.label)}</span><span class="attachment-meta sr-only">${escapeHtml(item.kind === 'pdf' ? 'PDF' : item.kind === 'pass' ? 'Wallet pass' : item.type || 'File')} · ${formatBytes(item.size)} · ${escapeHtml(new Date(item.addedAt).toLocaleDateString())}</span></div>
+      <div class="attachment-actions">
+        <button class="attachment-action" type="button" data-attachment-open="${escapeHtml(item.id)}" aria-label="${item.kind === 'pdf' ? 'Open PDF' : item.kind === 'pass' ? 'Open pass' : 'Share or download'} ${escapeHtml(item.name)}" title="${item.kind === 'pdf' ? 'Open PDF' : item.kind === 'pass' ? 'Open pass' : 'Share or download'}">${attachmentIcon('open')}</button>
+        <button class="attachment-action" type="button" data-attachment-rename="${escapeHtml(item.id)}" aria-label="Edit label for ${escapeHtml(item.name)}" title="Edit label">${attachmentIcon('edit')}</button>
+        <button class="attachment-action danger" type="button" data-attachment-remove="${escapeHtml(item.id)}" aria-label="Remove ${escapeHtml(item.name)}" title="Remove">${attachmentIcon('remove')}</button>
+      </div>
+    </li>`).join('')}</ul>` : '<p class="attachment-empty">No local documents attached in this context.</p>'}
+  </section>`;
+}
+
+async function refreshAttachmentState() {
+  state.attachments = new Map();
+  if (!state.trip) return;
+  const scopes = [{ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }];
+  for (const day of tripDays(state.trip)) {
+    scopes.push({ tripId: tripId(state.trip), type: 'day', ownerId: day.id });
+    for (const activity of day.activities ?? []) scopes.push({ tripId: tripId(state.trip), type: 'stop', ownerId: activity.id });
+  }
+  try {
+    const lists = await Promise.all(scopes.map((scope) => attachmentStore.list(scope)));
+    scopes.forEach((scope, index) => state.attachments.set(attachmentScopeKey(scope), lists[index]));
+    state.attachmentUsage = await attachmentStore.usage();
+  } catch (error) { state.attachmentError = error.message; }
+}
+
 function renderDetails(activity) {
   const links = (activity.links ?? [])
     .map((link) => ({ label: link.label || 'Open link', url: safeExternalUrl(link.url) }))
@@ -105,6 +156,7 @@ function renderActivity(activity) {
       </div>
       ${details.length ? `<details><summary>Practical details</summary><div class="details-body">${details.join('')}</div></details>` : ''}
       ${mapUrl ? `<a class="button map-action" data-map-link href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener noreferrer">Open in Google Maps ↗</a>` : ''}
+      ${attachmentPanel({ tripId: tripId(state.trip), type: 'stop', ownerId: activity.id }, 'Stop documents')}
     </div>
   </article>`;
 }
@@ -236,14 +288,19 @@ async function renderTrip(savedTrips) {
       ${navigation(days, day)}
       <section class="content" aria-live="polite">
         ${importErrorMarkup()}
+        ${state.attachmentError ? `<div class="import-error attachment-error" role="alert">${escapeHtml(state.attachmentError)}</div>` : ''}
+        <p class="attachment-usage" aria-label="Local attachment storage usage">Local documents: ${formatBytes(state.attachmentUsage.bytes)} of ${formatBytes(state.attachmentUsage.limitBytes)} used (${state.attachmentUsage.count} files). Per-file limit: ${formatBytes(attachmentStore.limits.perFileBytes)}.</p>
         ${day ? `<article class="day-panel">
           <header class="day-heading"><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">← Trip overview</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 data-testid="selected-day-title">${escapeHtml(day.title || day.date)}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
             ${renderDayRoute(day) ? '<div class="day-toolbar"><button class="button subtle" data-view-day-route type="button">View day route ↓</button></div>' : ''}
           </header>
+          ${attachmentPanel({ tripId: tripId(state.trip), type: 'day', ownerId: day.id }, 'Day documents')}
           ${(day.activities ?? []).length ? `<div class="timeline">${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No fixed plans yet</strong>This day is open. Add an activity in the itinerary file when you are ready.</div>'}
           ${renderDayRoute(day)}
         </article>` : `<article class="trip-overview" data-testid="trip-overview">
           <header><p class="eyebrow">At a glance</p><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day to see its complete itinerary.</p>'}</header>
+          ${attachmentPanel({ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }, 'Trip documents')}
+          <button class="button danger clear-trip-attachments" type="button" data-clear-trip-attachments>Clear all local documents for this trip</button>
           ${days.length ? `<ol class="overview-day-list">${days.map(dayPreview).join('')}</ol>` : '<section class="empty-card" data-testid="empty-itinerary"><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></section>'}
         </article>`}
       </section>
@@ -256,6 +313,7 @@ async function renderTrip(savedTrips) {
 
 async function render() {
   const savedTrips = await store.listTrips();
+  if (state.trip) await refreshAttachmentState();
   if (state.error) {
     app.innerHTML = `<div class="app-shell">${topbar()}<main class="single-column"><section class="error-card"><p class="eyebrow">Unable to open trip</p><h1>${escapeHtml(state.error.title)}</h1><p>${escapeHtml(state.error.message)}</p><a class="button primary" href="${escapeHtml(baseUrl.href)}">Back to all trips</a>${savedTrips.length ? `<div class="error-library"><h2>Trips on this device</h2>${savedTrips.map((trip) => tripCard(trip)).join('')}</div>` : ''}</section></main>${noticeMarkup()}</div>`;
     bindCommon();
@@ -263,6 +321,10 @@ async function render() {
   }
   if (state.view === 'collection') await renderCollection(savedTrips);
   else await renderTrip(savedTrips);
+  if (state.focusAfterRender) {
+    const target = document.querySelector(`[data-attachment-scope="${CSS.escape(state.focusAfterRender)}"] [data-attachment-trigger]`);
+    state.focusAfterRender = ''; target?.closest('label')?.focus();
+  }
 }
 
 function showNotice(message) {
@@ -303,6 +365,59 @@ async function shareCurrent() {
   } catch (error) {
     if (error?.name !== 'AbortError') showNotice('Could not share automatically. Copy the address from your browser.');
   }
+}
+
+function downloadAttachment(record, message = '') {
+  const blob = new Blob([record.blob], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url; anchor.download = record.name; anchor.rel = 'noopener';
+  document.body.append(anchor); anchor.click(); anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  if (message) showNotice(message);
+}
+
+async function verifiedPdf(record) {
+  const signature = new TextDecoder('ascii').decode((await record.blob.slice(0, 5).arrayBuffer()));
+  return signature === '%PDF-';
+}
+
+async function openAttachment(id) {
+  try {
+    const record = await attachmentStore.get(id);
+    if (!record) throw new Error('This attachment no longer exists.');
+    if (record.kind === 'pdf') {
+      if (!await verifiedPdf(record)) {
+        downloadAttachment(record, 'This file does not contain a valid PDF signature, so it was downloaded without inline preview.');
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([record.blob], { type: 'application/pdf' }));
+      const opened = window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (!opened) downloadAttachment(record, 'The PDF viewer was unavailable, so the file was downloaded instead.');
+      return;
+    }
+    const shareFile = new File([record.blob], record.name, { type: record.kind === 'pass' ? 'application/vnd.apple.pkpass' : 'application/octet-stream' });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [shareFile] }))) {
+      try { await navigator.share({ title: record.label, files: [shareFile] }); return; }
+      catch (error) { if (error?.name === 'AbortError') return; }
+    }
+    downloadAttachment(record, record.kind === 'pass'
+      ? 'No wallet handler is available. The pass was downloaded so you can open it from your device.'
+      : 'Sharing is unavailable here. The attachment was downloaded instead.');
+  } catch (error) { state.attachmentError = error.message; await render(); }
+}
+
+async function addAttachments(input) {
+  const scope = { tripId: input.dataset.tripId, type: input.dataset.scopeType, ownerId: input.dataset.ownerId };
+  state.focusAfterRender = attachmentScopeKey(scope);
+  try {
+    for (const file of input.files) await attachmentStore.add(scope, file);
+    state.notice = `${input.files.length} local ${input.files.length === 1 ? 'document' : 'documents'} added.`;
+    state.attachmentError = '';
+  } catch (error) { state.attachmentError = error.message; }
+  input.value = '';
+  await render();
 }
 
 function bindCommon() {
@@ -370,6 +485,8 @@ function bindCommon() {
   document.querySelector('[data-schema-export]')?.addEventListener('click', () => closeMenu());
   document.querySelectorAll('[data-remove-trip]').forEach((button) => button.addEventListener('click', async () => {
     if (!window.confirm(`Remove ${button.closest('.trip-card')?.querySelector('h2')?.textContent || 'this trip'} from this device?`)) return;
+    try { await attachmentStore.removeTrip(button.dataset.removeTrip); }
+    catch (error) { state.attachmentError = error.message; await render(); return; }
     await store.deleteTrip(button.dataset.removeTrip, Number(button.dataset.removeRevision));
     if (tripId(state.trip) === button.dataset.removeTrip) { state.trip = null; state.dayId = null; state.view = 'collection'; window.location.hash = ''; }
     showNotice('Trip removed.');
@@ -378,6 +495,31 @@ function bindCommon() {
     if (!state.online) { event.preventDefault(); showNotice('Maps needs a connection. Your itinerary is still available offline.'); }
   }));
   document.querySelector('#share-trip')?.addEventListener('click', shareCurrent);
+  document.querySelectorAll('[data-attachment-input]').forEach((input) => input.addEventListener('change', () => addAttachments(input)));
+  document.querySelectorAll('[data-attachment-trigger]').forEach((button) => button.addEventListener('click', () => button.parentElement.querySelector('[data-attachment-input]').click()));
+  document.querySelectorAll('[data-attachment-open]').forEach((button) => button.addEventListener('click', () => openAttachment(button.dataset.attachmentOpen)));
+  document.querySelectorAll('[data-attachment-rename]').forEach((button) => button.addEventListener('click', async () => {
+    const item = button.closest('[data-attachment-id]');
+    const current = item?.querySelector('.attachment-label')?.textContent || '';
+    const label = window.prompt('Display label for this local attachment', current);
+    if (label === null) return;
+    try { await attachmentStore.rename(button.dataset.attachmentRename, label); state.focusAfterRender = item.closest('[data-attachment-scope]').dataset.attachmentScope; await render(); }
+    catch (error) { state.attachmentError = error.message; await render(); }
+  }));
+  document.querySelectorAll('[data-attachment-remove]').forEach((button) => button.addEventListener('click', async () => {
+    const item = button.closest('[data-attachment-id]');
+    const label = item?.querySelector('.attachment-label')?.textContent || 'this local attachment';
+    if (!window.confirm(`Remove ${label}? The local file will be deleted from this browser.`)) return;
+    try {
+      state.focusAfterRender = item.closest('[data-attachment-scope]').dataset.attachmentScope;
+      await attachmentStore.remove(button.dataset.attachmentRemove); state.notice = 'Local attachment removed.'; await render();
+    } catch (error) { state.attachmentError = error.message; await render(); }
+  }));
+  document.querySelector('[data-clear-trip-attachments]')?.addEventListener('click', async () => {
+    if (!window.confirm('Clear every local document for this trip? This cannot be undone.')) return;
+    try { await attachmentStore.removeTrip(tripId(state.trip)); state.notice = 'All local documents for this trip were removed.'; await render(); }
+    catch (error) { state.attachmentError = error.message; await render(); }
+  });
   document.querySelector('#copy-import-error')?.addEventListener('click', async () => {
     const message = state.importError?.prompt;
     if (!message) return;
