@@ -10,9 +10,11 @@ const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
 const countryHistory = createCountryHistoryStore();
 window.trailbookCountryHistory = countryHistory;
+const SECTION_KEY = 'trailbook:primary-section';
+const initialSection = (() => { try { const value = sessionStorage.getItem(SECTION_KEY); return ['trip', 'route', 'history'].includes(value) ? value : 'trip'; } catch { return 'trip'; } })();
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
-  importError: null, installPrompt: null, online: navigator.onLine,
+  importError: null, installPrompt: null, online: navigator.onLine, section: initialSection,
 };
 
 const escapeHtml = (value = '') => String(value)
@@ -148,6 +150,15 @@ function topbar() {
 
 function noticeMarkup() { return state.notice ? `<div class="notice" role="status">${escapeHtml(state.notice)}</div>` : ''; }
 
+function bottomNavigation() {
+  const items = [
+    ['trip', 'Trip', '<path d="M3 10.5 12 3l9 7.5M5.5 9v11h13V9M9 20v-6h6v6"/>'],
+    ['route', 'Map-Route', '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h3a3 3 0 0 0 3-3V9a3 3 0 0 1 3-3"/>'],
+    ['history', 'History', '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'],
+  ];
+  return `<nav class="bottom-nav" aria-label="Primary">${items.map(([id, label, icon]) => `<button type="button" data-bottom-section="${id}" class="bottom-nav-item ${state.section === id ? 'active' : ''}" ${state.section === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg><span>${label}</span></button>`).join('')}</nav>`;
+}
+
 function importErrorMarkup() {
   if (!state.importError) return '';
   return `<section class="import-error" role="status" data-testid="itinerary-error">
@@ -176,6 +187,32 @@ function countryHistoryMarkup() {
   </section>`;
 }
 
+function routeStopMarkup(activity, index) {
+  const location = activityLocation(activity);
+  if (!location) return '';
+  const name = typeof location === 'string' ? location : firstValue(location.name, location.address, location.query, 'Location');
+  const transport = typeof activity.transport === 'string' ? activity.transport : activity.transport?.mode;
+  return `<li><span class="route-number" aria-hidden="true">${index + 1}</span><div><strong>${escapeHtml(activity.title)}</strong><span>${escapeHtml(name)}</span>${transport ? `<small>${escapeHtml(transport)}</small>` : ''}</div></li>`;
+}
+
+function mapRouteMarkup() {
+  if (!state.trip) return `<section class="route-view empty-card" aria-labelledby="route-title"><p class="eyebrow">Map-Route</p><h2 id="route-title">Choose a trip first</h2><p>Open a trip from the Trip tab to see its ordered route here.</p><button class="button primary" type="button" data-bottom-section="trip">Go to trips</button></section>`;
+  const days = tripDays(state.trip);
+  const day = currentDay();
+  if (!day) return `<section class="route-view" aria-labelledby="route-title"><header><p class="eyebrow">${escapeHtml(tripTitle(state.trip))}</p><h2 id="route-title">Map-Route</h2><p>Select a day. Routes stay inside Trailbook and preserve itinerary order.</p></header><div class="route-day-list">${days.map((item, index) => {
+    const count = (item.activities ?? []).filter(activityLocation).length;
+    return `<a href="${escapeHtml(tripHash(state.trip, item.id))}" data-route-day><span>Day ${index + 1}</span><strong>${escapeHtml(item.title || item.date)}</strong><small>${count} ${count === 1 ? 'stop' : 'stops'}</small></a>`;
+  }).join('')}</div></section>`;
+  const stops = (day.activities ?? []).filter(activityLocation);
+  return `<section class="route-view" aria-labelledby="route-title"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All trip days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} route</h2><p>Stops are shown in itinerary order and remain available offline.</p></header>${stops.length ? `<ol class="route-stop-list">${stops.map(routeStopMarkup).join('')}</ol>` : '<div class="empty-route"><strong>No mapped stops</strong><p>This day has no locations yet.</p></div>'}</section>`;
+}
+
+async function renderUtilitySection() {
+  const history = state.section === 'history';
+  app.innerHTML = `<div class="app-shell utility-shell">${topbar()}<header class="utility-hero"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
+  bindCommon();
+}
+
 async function renderCollection(savedTrips) {
   const trips = uniqueTrips(savedTrips);
   app.innerHTML = `<div class="app-shell">
@@ -186,11 +223,10 @@ async function renderCollection(savedTrips) {
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${importErrorMarkup()}
-      ${countryHistoryMarkup()}
       <div class="collection-heading"><div><p class="eyebrow">Saved and published</p><h2>Trip collection</h2></div><span>${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}</span></div>
       ${trips.length ? `<div class="trip-grid">${trips.map((trip) => tripCard(trip)).join('')}</div>` : `<section class="empty-card"><h2>No trips on this device</h2><p>${state.online ? 'Import an itinerary to get started.' : 'Connect once to download a published trip, or import an itinerary file already on this device.'}</p></section>`}
     </main>
-    ${noticeMarkup()}
+    ${bottomNavigation()}${noticeMarkup()}
   </div>`;
   bindCommon();
 }
@@ -242,7 +278,7 @@ async function renderTrip(savedTrips) {
         </article>`}
       </section>
     </main>
-    ${noticeMarkup()}
+    ${bottomNavigation()}${noticeMarkup()}
   </div>`;
   bindCommon();
 }
@@ -254,7 +290,8 @@ async function render() {
     bindCommon();
     return;
   }
-  if (state.view === 'collection') await renderCollection(savedTrips);
+  if (state.section !== 'trip') await renderUtilitySection();
+  else if (state.view === 'collection') await renderCollection(savedTrips);
   else await renderTrip(savedTrips);
 }
 
@@ -277,6 +314,8 @@ async function importFile(file) {
     countryHistory.importItinerary(candidate);
     state.importError = null;
     state.notice = 'Trip imported and saved on this device.';
+    state.section = 'trip';
+    try { sessionStorage.setItem(SECTION_KEY, state.section); } catch { /* Continue without persistence. */ }
     window.location.hash = tripHash(candidate);
     if (window.location.hash === tripHash(candidate)) await loadRoute();
   } catch (error) {
@@ -300,6 +339,12 @@ async function shareCurrent() {
 }
 
 function bindCommon() {
+  document.querySelectorAll('[data-bottom-section]').forEach((button) => button.addEventListener('click', async () => {
+    state.section = button.dataset.bottomSection;
+    try { sessionStorage.setItem(SECTION_KEY, state.section); } catch { /* Navigation still works without persistence. */ }
+    await render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }));
   document.querySelector('#add-country')?.addEventListener('submit', async (event) => {
     event.preventDefault(); const data = new FormData(event.currentTarget);
     try {
