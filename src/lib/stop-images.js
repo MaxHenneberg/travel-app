@@ -30,7 +30,11 @@ export function commonsApiUrl(image) {
   return url.href;
 }
 
-const plainText = (value = '') => String(value).replace(/<[^>]*>/g, '').replaceAll('&amp;', '&').trim();
+const plainText = (value = '') => String(value)
+  .replaceAll('&lt;', '<').replaceAll('&gt;', '>')
+  .replaceAll('&quot;', '"').replaceAll('&#39;', "'")
+  .replace(/<[^>]*>/g, '').replaceAll('&amp;', '&')
+  .replace(/\s+/g, ' ').trim();
 
 export function parseCommonsResponse(payload, fallbackAlt = '') {
   const page = payload?.query?.pages?.find((candidate) => candidate.imageinfo?.[0]);

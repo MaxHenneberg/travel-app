@@ -107,26 +107,31 @@ test('published preview lazily resolves Wikimedia Commons metadata and attributi
   let apiRequests = 0;
   await context.route('https://commons.wikimedia.org/w/api.php**', async (route) => {
     apiRequests += 1;
-    const query = new URL(route.request().url()).searchParams.get('gsrsearch');
-    const name = query.includes('MAAT') ? 'maat' : 'monastery';
+    const requestUrl = new URL(route.request().url());
+    const reference = requestUrl.searchParams.get('titles') || requestUrl.searchParams.get('gsrsearch') || '';
+    const name = reference.includes('Santa Luzia') ? 'viewpoint' : reference.includes('Tram') ? 'tram' : 'alfama';
     await route.fulfill({ status: 200, json: { query: { pages: [{ imageinfo: [{
       thumburl: imageUrl(name), descriptionurl: `https://commons.wikimedia.org/wiki/File:${name}.jpg`,
       extmetadata: { ImageDescription: { value: `${name} description` }, Artist: { value: 'Commons photographer' } },
     }] }] } }, headers: { 'Access-Control-Allow-Origin': '*' } });
   });
   await context.route('https://images.example.test/**', (route) => route.fulfill({ status: 200, body: pixel, headers: { 'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*' } }));
-  await page.goto('./#/trip/weekend-lisbon/v/1/day/river-day');
-  const picture = page.locator('[data-activity-id="belem"] .stop-picture');
-  await expect(picture.locator('img')).toHaveAttribute('src', imageUrl('monastery'));
+  await page.goto('./#/trip/weekend-lisbon/v/1/day/arrival');
+  const picture = page.locator('[data-activity-id="check-in"] .stop-picture');
+  await expect(picture.locator('img')).toHaveAttribute('src', imageUrl('viewpoint'));
   await expect(picture.locator('.stop-picture-frame')).toHaveClass(/loaded/);
   await expect(picture.getByText('Photo: Commons photographer')).toBeVisible();
   await expect(picture.getByRole('link', { name: 'Image source' })).toHaveAttribute('href', /commons\.wikimedia\.org/);
-  const riverfront = page.locator('[data-activity-id="maat"] .stop-picture');
-  await riverfront.scrollIntoViewIfNeeded();
-  await expect(riverfront.locator('img')).toHaveAttribute('src', imageUrl('maat'));
-  await expect(riverfront.locator('img')).toHaveAttribute('alt', 'MAAT beside the Tagus river');
-  await expect(riverfront.locator('.stop-picture-frame')).toHaveClass(/loaded/);
-  expect(apiRequests).toBe(2);
+  const tram = page.locator('[data-activity-id="tram"] .stop-picture');
+  await tram.scrollIntoViewIfNeeded();
+  await expect(tram.locator('img')).toHaveAttribute('src', imageUrl('tram'));
+  await expect(tram.locator('img')).toHaveAttribute('alt', 'Yellow tram 28 travelling through Lisbon');
+  await expect(tram.locator('.stop-picture-frame')).toHaveClass(/loaded/);
+  const alfama = page.locator('[data-activity-id="dinner"] .stop-picture');
+  await alfama.scrollIntoViewIfNeeded();
+  await expect(alfama.locator('img')).toHaveAttribute('src', imageUrl('alfama'));
+  await expect(alfama.locator('.stop-picture-frame')).toHaveClass(/loaded/);
+  expect(apiRequests).toBe(3);
 });
 
 test('TA-TRAVEL-80-02 @pr lazy-loads responsive, accessible online thumbnails', async ({ context, page }, testInfo) => {
