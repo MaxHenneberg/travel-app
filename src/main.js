@@ -145,7 +145,9 @@ function topbar() {
       <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
       <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="app-menu" aria-label="Open app menu"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></button>
     </div>
-    <nav class="app-menu" id="app-menu" aria-label="App menu" hidden>
+    <div class="menu-backdrop" id="menu-backdrop" aria-hidden="true" hidden></div>
+    <nav class="app-menu" id="app-menu" aria-label="App menu" aria-hidden="true" hidden>
+      <div class="app-menu-heading"><strong>App menu</strong><button class="drawer-close" id="drawer-close" type="button" aria-label="Close app menu">&times;</button></div>
       <label class="theme-control" for="theme-selector"><span>Theme</span><select id="theme-selector" aria-describedby="active-theme-status">${themes.map((theme) => `<option value="${theme.id}" ${theme.id === state.theme ? 'selected' : ''}>${theme.name}</option>`).join('')}</select></label>
       <label class="menu-action import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>
       ${schemaExportLink('menu-action')}
@@ -287,26 +289,54 @@ async function shareCurrent() {
 function bindCommon() {
   const menu = document.querySelector('#app-menu');
   const menuToggle = document.querySelector('#menu-toggle');
+  const backdrop = document.querySelector('#menu-backdrop');
+  let closeTimer;
   const closeMenu = ({ restoreFocus = false } = {}) => {
     if (!menu || !menuToggle || menu.hidden) return;
-    menu.hidden = true;
+    window.clearTimeout(closeTimer);
+    menu.classList.remove('open');
+    backdrop?.classList.remove('open');
+    menu.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('menu-open');
     menuToggle.setAttribute('aria-expanded', 'false');
     menuToggle.setAttribute('aria-label', 'Open app menu');
     if (restoreFocus) menuToggle.focus();
+    closeTimer = window.setTimeout(() => {
+      if (!menu.classList.contains('open')) {
+        menu.hidden = true;
+        if (backdrop) backdrop.hidden = true;
+      }
+    }, 240);
   };
   menuToggle?.addEventListener('click', () => {
     const opening = menu.hidden;
-    menu.hidden = !opening;
-    menuToggle.setAttribute('aria-expanded', String(opening));
-    menuToggle.setAttribute('aria-label', opening ? 'Close app menu' : 'Open app menu');
-    if (opening) menu.querySelector('select, a, button, label')?.focus();
+    if (!opening) { closeMenu({ restoreFocus: true }); return; }
+    window.clearTimeout(closeTimer);
+    menu.hidden = false;
+    if (backdrop) backdrop.hidden = false;
+    document.body.classList.add('menu-open');
+    menuToggle.setAttribute('aria-expanded', 'true');
+    menuToggle.setAttribute('aria-label', 'Close app menu');
+    requestAnimationFrame(() => {
+      menu.classList.add('open');
+      backdrop?.classList.add('open');
+      menu.setAttribute('aria-hidden', 'false');
+      menu.querySelector('select, a, button, label')?.focus();
+    });
   });
   document.onkeydown = (event) => {
     if (event.key === 'Escape') closeMenu({ restoreFocus: true });
+    if (event.key === 'Tab' && menu && !menu.hidden) {
+      const focusable = [...menu.querySelectorAll('select, a[href], button:not([hidden]), input:not([type="file"])')].filter((node) => !node.disabled);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
   };
-  document.onclick = (event) => {
-    if (!event.target.closest('.topbar')) closeMenu();
-  };
+  backdrop?.addEventListener('click', () => closeMenu({ restoreFocus: true }));
+  document.querySelector('#drawer-close')?.addEventListener('click', () => closeMenu({ restoreFocus: true }));
   document.querySelector('#theme-selector')?.addEventListener('change', (event) => {
     const active = applyTheme(event.currentTarget.value);
     state.theme = active.id;
