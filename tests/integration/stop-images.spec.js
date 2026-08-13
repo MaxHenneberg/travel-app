@@ -121,6 +121,8 @@ test('published preview lazily resolves Wikimedia Commons metadata and attributi
   await expect(picture.locator('img')).toHaveAttribute('src', imageUrl('viewpoint'));
   await expect(picture.locator('.stop-picture-frame')).toHaveClass(/loaded/);
   await expect(picture.getByText('Photo: Commons photographer')).toBeVisible();
+  await expect(picture.locator('[data-image-caption]')).toBeEmpty();
+  await expect(picture.getByText('viewpoint description')).toHaveCount(0);
   await expect(picture.getByRole('link', { name: 'Image source' })).toHaveAttribute('href', /commons\.wikimedia\.org/);
   const tram = page.locator('[data-activity-id="tram"] .stop-picture');
   await tram.scrollIntoViewIfNeeded();
