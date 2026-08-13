@@ -75,17 +75,17 @@ function formatBytes(bytes) {
 function attachmentPanel(scope, heading) {
   const key = attachmentScopeKey(scope);
   const records = state.attachments.get(key) ?? [];
-  return `<section class="attachments" data-attachment-scope="${escapeHtml(key)}" aria-labelledby="attachments-${escapeHtml(key)}">
-    <div class="attachment-heading"><div><p class="eyebrow">Local only · available offline</p><h3 id="attachments-${escapeHtml(key)}">${escapeHtml(heading)}</h3></div>
-      <label class="button subtle attachment-picker">Add files<input type="file" multiple data-attachment-input data-trip-id="${escapeHtml(scope.tripId)}" data-scope-type="${escapeHtml(scope.type)}" data-owner-id="${escapeHtml(scope.ownerId)}"></label>
+  return `<section class="attachments" data-attachment-scope="${escapeHtml(key)}" aria-label="${escapeHtml(heading)}">
+    <div class="attachment-heading"><div><span class="attachment-title">${escapeHtml(heading)}</span><span class="attachment-status">Local · offline</span></div>
+      <div class="attachment-picker-wrap"><button class="attachment-picker" type="button" data-attachment-trigger aria-label="Add files to ${escapeHtml(heading)}"><span aria-hidden="true">＋</span><span class="attachment-add-label">Add</span></button><input class="sr-only" type="file" multiple data-attachment-input data-trip-id="${escapeHtml(scope.tripId)}" data-scope-type="${escapeHtml(scope.type)}" data-owner-id="${escapeHtml(scope.ownerId)}"></div>
     </div>
-    <p class="attachment-privacy">Documents stay in this browser profile and never sync or upload. They may contain personal information and are protected by your device—not by app-level encryption.</p>
+    <p class="attachment-privacy sr-only">Documents stay in this browser profile and never sync or upload. They may contain personal information and are protected by your device—not by app-level encryption.</p>
     ${records.length ? `<ul class="attachment-list">${records.map((item) => `<li class="attachment-item" data-attachment-id="${escapeHtml(item.id)}">
-      <div class="attachment-copy"><strong class="attachment-label">${escapeHtml(item.label)}</strong><span class="attachment-name">${escapeHtml(item.name)}</span><span>${escapeHtml(item.kind === 'pdf' ? 'PDF document' : item.kind === 'pass' ? 'Wallet pass' : item.type || 'Generic file')} · ${formatBytes(item.size)} · added ${escapeHtml(new Date(item.addedAt).toLocaleDateString())}</span></div>
+      <div class="attachment-copy"><strong class="attachment-name">${escapeHtml(item.name)}</strong><span class="attachment-label sr-only">${escapeHtml(item.label)}</span><span class="attachment-meta sr-only">${escapeHtml(item.kind === 'pdf' ? 'PDF' : item.kind === 'pass' ? 'Wallet pass' : item.type || 'File')} · ${formatBytes(item.size)} · ${escapeHtml(new Date(item.addedAt).toLocaleDateString())}</span></div>
       <div class="attachment-actions">
-        <button class="button subtle" type="button" data-attachment-open="${escapeHtml(item.id)}">${item.kind === 'pdf' ? 'Open PDF' : item.kind === 'pass' ? 'Open pass' : 'Share or download'}</button>
-        <button class="button ghost" type="button" data-attachment-rename="${escapeHtml(item.id)}">Edit label</button>
-        <button class="button danger" type="button" data-attachment-remove="${escapeHtml(item.id)}">Remove</button>
+        <button class="attachment-action" type="button" data-attachment-open="${escapeHtml(item.id)}" aria-label="${item.kind === 'pdf' ? 'Open PDF' : item.kind === 'pass' ? 'Open pass' : 'Share or download'} ${escapeHtml(item.name)}" title="${item.kind === 'pdf' ? 'Open PDF' : item.kind === 'pass' ? 'Open pass' : 'Share or download'}"><span aria-hidden="true">↗</span></button>
+        <button class="attachment-action" type="button" data-attachment-rename="${escapeHtml(item.id)}" aria-label="Edit label for ${escapeHtml(item.name)}" title="Edit label"><span aria-hidden="true">✎</span></button>
+        <button class="attachment-action danger" type="button" data-attachment-remove="${escapeHtml(item.id)}" aria-label="Remove ${escapeHtml(item.name)}" title="Remove"><span aria-hidden="true">×</span></button>
       </div>
     </li>`).join('')}</ul>` : '<p class="attachment-empty">No local documents attached in this context.</p>'}
   </section>`;
@@ -285,7 +285,7 @@ async function render() {
   if (state.view === 'collection') await renderCollection(savedTrips);
   else await renderTrip(savedTrips);
   if (state.focusAfterRender) {
-    const target = document.querySelector(`[data-attachment-scope="${CSS.escape(state.focusAfterRender)}"] [data-attachment-input]`);
+    const target = document.querySelector(`[data-attachment-scope="${CSS.escape(state.focusAfterRender)}"] [data-attachment-trigger]`);
     state.focusAfterRender = ''; target?.closest('label')?.focus();
   }
 }
@@ -401,6 +401,7 @@ function bindCommon() {
   }));
   document.querySelector('#share-trip')?.addEventListener('click', shareCurrent);
   document.querySelectorAll('[data-attachment-input]').forEach((input) => input.addEventListener('change', () => addAttachments(input)));
+  document.querySelectorAll('[data-attachment-trigger]').forEach((button) => button.addEventListener('click', () => button.parentElement.querySelector('[data-attachment-input]').click()));
   document.querySelectorAll('[data-attachment-open]').forEach((button) => button.addEventListener('click', () => openAttachment(button.dataset.attachmentOpen)));
   document.querySelectorAll('[data-attachment-rename]').forEach((button) => button.addEventListener('click', async () => {
     const item = button.closest('[data-attachment-id]');

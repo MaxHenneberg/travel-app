@@ -21,10 +21,18 @@ test('TA-TRAVEL-89-01 @pr attaches and accesses files at trip, day, and stop sco
   await expect(stopPanel.locator('.attachment-name')).toHaveText('notes.txt');
   page.once('dialog', (dialog) => dialog.accept('Tram ticket')); await stopPanel.getByRole('button', { name: 'Edit label' }).click();
   await expect(stopPanel.getByText('Tram ticket')).toBeVisible();
+  await expect(stopPanel.getByRole('button', { name: 'Add files to Stop documents' })).toHaveCSS('min-height', '44px');
+  const actionHeight = await stopPanel.getByRole('button', { name: 'Share or download notes.txt' })
+    .evaluate((element) => element.getBoundingClientRect().height);
+  expect(actionHeight).toBeGreaterThanOrEqual(44);
+  await expect(stopPanel.locator('h3')).toHaveCount(0);
+  const panelHeight = await stopPanel.evaluate((element) => element.getBoundingClientRect().height);
+  expect(panelHeight).toBeLessThan(220);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
 
-test('TA-TRAVEL-89-02 @pr @post-deploy reopens local attachments offline without requests', async ({ page, context }) => {
+test('TA-TRAVEL-89-02 @pr @post-deploy reopens local attachments offline without requests', async ({ page, context }, testInfo) => {
+  test.skip(testInfo.project.name !== 'android-chrome', 'Offline installed-PWA behavior uses the Android profile.');
   await openTrip(page);
   await page.locator('[data-attachment-scope="weekend-lisbon:trip:weekend-lisbon"] input').setInputFiles(pdf);
   await page.reload(); await expect(page.locator('.attachment-name')).toHaveText('ticket.pdf');
