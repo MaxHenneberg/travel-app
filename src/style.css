@@ -22,6 +22,9 @@
   --shadow-color: rgb(70 35 50 / 13%);
   --overlay-border: rgb(255 255 255 / 50%);
   --color-decoration: rgb(181 46 104 / 24%);
+  --kasumi-far: rgb(255 220 229 / 42%);
+  --kasumi-near: rgb(255 244 226 / 34%);
+  --kasumi-glow: transparent;
   --color-success-ring: rgb(23 107 69 / 18%);
   --color-warning-ring: rgb(133 85 0 / 18%);
   color: var(--color-text);
@@ -63,6 +66,9 @@
   --shadow-color: rgb(0 0 0 / 45%);
   --overlay-border: rgb(255 255 255 / 35%);
   --color-decoration: rgb(0 219 231 / 24%);
+  --kasumi-far: rgb(0 219 231 / 30%);
+  --kasumi-near: rgb(255 79 184 / 25%);
+  --kasumi-glow: rgb(0 219 231 / 24%);
   --color-success-ring: rgb(89 227 152 / 18%);
   --color-warning-ring: rgb(255 209 102 / 18%);
 }
@@ -119,6 +125,16 @@ body.menu-open { overflow: hidden; }
   color: var(--cream);
   background: var(--deep);
 }
+.hero, .collection-hero, .utility-hero { position: relative; overflow: hidden; isolation: isolate; }
+.hero-content, .collection-hero-content, .utility-hero-content { position: relative; z-index: 2; }
+.kasumi { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; contain: strict; }
+.kasumi-layer { position: absolute; inset: -4% -2%; width: 104%; height: 108%; overflow: visible; fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; will-change: auto; }
+.kasumi-layer path { vector-effect: non-scaling-stroke; }
+.kasumi-layer-far { stroke: var(--kasumi-far); stroke-width: 10; opacity: .72; transform: translate3d(0, var(--kasumi-far-shift, 0), 0); }
+.kasumi-layer-near { stroke: var(--kasumi-near); stroke-width: 14; opacity: .68; transform: translate3d(0, var(--kasumi-near-shift, 0), 0); }
+:root[data-theme="neon-japan"] .kasumi-layer { filter: drop-shadow(0 0 7px var(--kasumi-glow)); }
+[data-kasumi-mode="parallax"] .kasumi-layer { will-change: transform; }
+[data-kasumi-mode="static-fallback"] .kasumi-layer, [data-kasumi-mode="reduced-motion"] .kasumi-layer { transform: none; }
 .hero::after { position: absolute; right: -10rem; bottom: -14rem; width: 36rem; height: 36rem; content: ''; border: 1px solid var(--color-decoration); border-radius: 50%; box-shadow: 0 0 0 5rem var(--color-decoration); opacity: .45; }
 .hero-content { position: relative; z-index: 1; max-width: 66rem; margin: 0 auto; }
 .eyebrow { margin: 0 0 .9rem; color: var(--color-accent); font-size: .75rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
@@ -166,7 +182,7 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .import-label input { position: absolute; width: 1px; height: 1px; clip: rect(0 0 0 0); }
 
 .collection-hero { display: flex; align-items: end; justify-content: space-between; gap: 2rem; padding: clamp(3rem, 9vw, 6rem) max(1rem, calc((100% - 76rem) / 2)) 6rem; color: var(--cream); background: var(--deep); }
-.collection-hero > div:first-child { min-width: 0; max-width: 52rem; }
+.collection-hero > div:first-child, .collection-hero-content { min-width: 0; max-width: 52rem; }
 .collection-hero h1 { overflow-wrap: anywhere; }
 .collection-hero > div > p:last-child { max-width: 42rem; color: var(--color-header-muted); }
 .collection-main { position: relative; width: min(calc(100% - 2rem), 76rem); margin: -3rem auto 4rem; }
@@ -346,7 +362,10 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
   .day-route { grid-template-columns: 1fr; }
 }
 
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .kasumi-layer { transform: none !important; will-change: auto; }
+}
 
 /* Feature surfaces consume only the shared semantic layer. */
 .collection-hero, .hero, .topbar, .notice { color: var(--color-header-text); background: var(--color-header); }

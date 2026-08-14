@@ -8,8 +8,10 @@ import { countryName, createCountryHistoryStore } from '../../lib/country-histor
 import { createAttachmentStore } from '../../lib/attachment-store.js';
 import { imageIsCached, resolveStopImage, validStopImages } from '../../lib/stop-images.js';
 import { applyTheme, readStoredTheme, themes } from '../../lib/theme.js';
+import { createKasumiParallax } from '../../lib/kasumi.js';
 
 let app;
+let disposeKasumi = () => {};
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
 const attachmentStore = createAttachmentStore();
@@ -216,6 +218,19 @@ function schemaExportLink(className = 'button ghost') {
   return `<a class="${className}" data-schema-export href="${escapeHtml(url)}" download="trailbook-itinerary-schema-v1.json">Export JSON schema</a>`;
 }
 
+function kasumiMarkup() {
+  return `<div class="kasumi" data-testid="kasumi-decoration" aria-hidden="true">
+    <svg class="kasumi-layer kasumi-layer-far" data-kasumi-layer="far" viewBox="0 0 1200 360" preserveAspectRatio="none" focusable="false">
+      <path d="M-80 92h220V70h174v30h226V76h190v24h230V72h320"/>
+      <path d="M-120 132h282v-18h210v24h244v-20h250v18h400"/>
+    </svg>
+    <svg class="kasumi-layer kasumi-layer-near" data-kasumi-layer="near" viewBox="0 0 1200 360" preserveAspectRatio="none" focusable="false">
+      <path d="M-100 250h250v-30h185v38h270v-28h196v34h235v-26h270"/>
+      <path d="M40 300h225v-20h250v28h190v-22h270v18h260"/>
+    </svg>
+  </div>`;
+}
+
 function topbar() {
   return `<header class="topbar">
     <a class="brand" href="${escapeHtml(baseUrl.href)}" aria-label="All trips"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></a>
@@ -296,7 +311,7 @@ function mapRouteMarkup() {
 
 async function renderUtilitySection() {
   const history = state.section === 'history';
-  app.innerHTML = `<div class="app-shell utility-shell">${topbar()}<header class="utility-hero"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
+  app.innerHTML = `<div class="app-shell utility-shell">${topbar()}<header class="utility-hero" data-kasumi-header>${kasumiMarkup()}<div class="utility-hero-content"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></div></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
   bindCommon();
 }
 
@@ -304,8 +319,8 @@ async function renderCollection(savedTrips) {
   const trips = uniqueTrips(savedTrips);
   app.innerHTML = `<div class="app-shell">
     ${topbar()}
-    <header class="collection-hero">
-      <div><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
+    <header class="collection-hero" data-kasumi-header>
+      ${kasumiMarkup()}<div class="collection-hero-content"><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${shareTargetMarkup()}${importErrorMarkup()}
@@ -340,7 +355,7 @@ async function renderTrip(savedTrips) {
   const day = currentDay();
   app.innerHTML = `<div class="app-shell">
     ${topbar()}
-    <header class="hero"><div class="hero-content">
+    <header class="hero" data-kasumi-header>${kasumiMarkup()}<div class="hero-content">
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
@@ -487,6 +502,8 @@ async function addAttachments(input) {
 }
 
 function bindCommon() {
+  disposeKasumi();
+  disposeKasumi = createKasumiParallax({ root: document, viewport: window, navigatorObject: navigator });
   document.querySelectorAll('[data-bottom-section]').forEach((button) => button.addEventListener('click', async () => {
     state.section = button.dataset.bottomSection;
     window.dispatchEvent(new CustomEvent('trailbook:feature-open', { detail: state.section }));
@@ -784,6 +801,7 @@ export function initializeLegacyApp(root) {
   window.addEventListener('beforeinstallprompt', onInstallPrompt);
   loadRoute();
   return () => {
+    disposeKasumi();
     window.removeEventListener('hashchange', onHashChange);
     window.removeEventListener('online', onOnline);
     window.removeEventListener('offline', onOffline);
