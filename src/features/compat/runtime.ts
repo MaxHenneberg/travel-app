@@ -8,6 +8,7 @@ import { countryName, createCountryHistoryStore } from '../../lib/country-histor
 import { createAttachmentStore } from '../../lib/attachment-store.js';
 import { imageIsCached, resolveStopImage, validStopImages } from '../../lib/stop-images.js';
 import { applyTheme, readStoredTheme, themes } from '../../lib/theme.js';
+import { createTrailbookExport, shareOrDownloadTrailbook } from '../../lib/trailbook-export.js';
 
 let app;
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
@@ -227,7 +228,7 @@ function topbar() {
     <nav class="app-menu" id="app-menu" aria-label="App menu" aria-hidden="true" hidden>
       <div class="app-menu-heading"><strong>App menu</strong><button class="drawer-close" id="drawer-close" type="button" aria-label="Close app menu">&times;</button></div>
       <label class="theme-control" for="theme-selector"><span>Theme</span><select id="theme-selector" aria-describedby="active-theme-status">${themes.map((theme) => `<option value="${theme.id}" ${theme.id === state.theme ? 'selected' : ''}>${theme.name}</option>`).join('')}</select></label>
-      <label class="menu-action import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>
+      <label class="menu-action import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,application/vnd.trailbook.itinerary+json,.json,.trailbook"></label>
       ${schemaExportLink('menu-action')}
       <button class="menu-action" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button>
     </nav>
@@ -236,6 +237,16 @@ function topbar() {
 }
 
 function noticeMarkup() { return state.notice ? `<div class="notice" role="status">${escapeHtml(state.notice)}</div>` : ''; }
+
+function trailbookExportMarkup() {
+  return `<section class="trailbook-export" aria-labelledby="trailbook-export-title">
+    <div><p class="eyebrow">Private file export</p><h3 id="trailbook-export-title">Take this trip with you</h3>
+      <p>Creates one portable <strong>.trailbook</strong> itinerary on this device. It never uploads anything. Local documents, cached stop pictures, browser data, and device paths are not included.</p>
+      <p class="trailbook-export-separation">This file action is separate from <strong>Share this trip</strong>, which sends a published link.</p></div>
+    <button class="button primary" id="export-trailbook" type="button" aria-describedby="trailbook-export-title trailbook-export-status">Export &amp; share file</button>
+    <p class="trailbook-export-status" id="trailbook-export-status" role="status">You choose when to export. On supported Android devices, the system share sheet opens; otherwise the file downloads.</p>
+  </section>`;
+}
 
 function bottomNavigation() {
   const items = [
@@ -363,6 +374,7 @@ async function renderTrip(savedTrips) {
           <header><p class="eyebrow">At a glance</p><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day to see its complete itinerary.</p>'}</header>
           ${attachmentPanel({ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }, 'Trip documents')}
           <button class="button danger clear-trip-attachments" type="button" data-clear-trip-attachments>Clear all local documents for this trip</button>
+          ${trailbookExportMarkup()}
           ${days.length ? `<ol class="overview-day-list">${days.map(dayPreview).join('')}</ol>` : '<section class="empty-card" data-testid="empty-itinerary"><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></section>'}
         </article>`}
       </section>
@@ -430,6 +442,32 @@ async function shareCurrent() {
     showNotice('Link copied to clipboard.');
   } catch (error) {
     if (error?.name !== 'AbortError') showNotice('Could not share automatically. Copy the address from your browser.');
+  }
+}
+
+async function exportCurrentTrip() {
+  const button = document.querySelector('#export-trailbook');
+  const status = document.querySelector('#trailbook-export-status');
+  if (!button || !status) return;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  status.setAttribute('role', 'status');
+  status.textContent = 'Validating and preparing your private trip fileâ€¦';
+  try {
+    const { file } = createTrailbookExport(state.trip);
+    const result = await shareOrDownloadTrailbook(file);
+    status.textContent = result === 'shared'
+      ? 'Trailbook file shared. Nothing was uploaded by Trailbook.'
+      : 'Trailbook file downloaded. Nothing was uploaded.';
+  } catch (error) {
+    const path = error?.path ? ` at ${error.path}` : '';
+    status.setAttribute('role', 'alert');
+    status.textContent = `This trip cannot be exported because its itinerary is invalid${path}. ${error?.message || 'Fix the itinerary and try again.'}`;
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
   }
 }
 
@@ -583,6 +621,7 @@ function bindCommon() {
     if (!state.online) { event.preventDefault(); showNotice('Maps needs a connection. Your itinerary is still available offline.'); }
   }));
   document.querySelector('#share-trip')?.addEventListener('click', shareCurrent);
+  document.querySelector('#export-trailbook')?.addEventListener('click', exportCurrentTrip);
   document.querySelectorAll('[data-attachment-input]').forEach((input) => input.addEventListener('change', () => addAttachments(input)));
   document.querySelectorAll('[data-attachment-trigger]').forEach((button) => button.addEventListener('click', () => button.parentElement.querySelector('[data-attachment-input]').click()));
   document.querySelectorAll('[data-attachment-open]').forEach((button) => button.addEventListener('click', () => openAttachment(button.dataset.attachmentOpen)));
