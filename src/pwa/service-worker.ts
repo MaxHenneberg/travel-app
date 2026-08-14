@@ -82,7 +82,7 @@ registerRoute(
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
-    self.skipWaiting();
+    void self.skipWaiting();
     return;
   }
   if (event.data?.type !== 'PURGE_IMAGE' || typeof event.data.url !== 'string') return;
