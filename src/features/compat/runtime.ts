@@ -489,6 +489,7 @@ async function addAttachments(input) {
 function bindCommon() {
   document.querySelectorAll('[data-bottom-section]').forEach((button) => button.addEventListener('click', async () => {
     state.section = button.dataset.bottomSection;
+    window.dispatchEvent(new CustomEvent('trailbook:feature-open', { detail: state.section }));
     try { sessionStorage.setItem(SECTION_KEY, state.section); } catch { /* Navigation still works without persistence. */ }
     await render();
     window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -40,6 +40,20 @@ test('TA-TRAVEL-121-03 @post-deploy supports upgrade-safe offline deep links and
   const manifest = await (await page.request.get('./manifest.webmanifest')).json();
   expect(manifest.share_target.method).toBe('POST');
   expect(manifest.share_target.action).toContain('share-target=itinerary');
+  await page.reload();
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  const confirmationUrl = await page.evaluate(async () => {
+    const itinerary = { schemaVersion: '1.0.0', trip: { id: 'shared-migration-check', title: 'Shared migration check', startDate: '2026-08-14', endDate: '2026-08-14', timeZone: 'Europe/Berlin', days: [] } };
+    const data = new FormData();
+    data.set('itinerary', new File([JSON.stringify(itinerary)], 'shared.json', { type: 'application/json' }));
+    return (await fetch('./?share-target=itinerary', { method: 'POST', body: data })).url;
+  });
+  await page.goto(confirmationUrl);
+  await expect(page.getByRole('heading', { name: 'Shared itinerary ready to review' })).toBeVisible();
+  await expect(page.locator('[data-trip-id="shared-migration-check"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cancel shared import' }).click();
+  await expect(page.getByRole('heading', { name: 'A long weekend in Lisbon' })).toBeVisible();
+  await expect(page.locator('[data-trip-id="shared-migration-check"]')).toHaveCount(0);
 });
 
 test('TA-TRAVEL-121-04 @pr @post-deploy preserves responsive themes and lazy heavy features', async ({ page }) => {
@@ -50,6 +64,10 @@ test('TA-TRAVEL-121-04 @pr @post-deploy preserves responsive themes and lazy hea
   await expect(page.getByRole('heading', { name: 'Arrival & Alfama' })).toBeVisible();
   expect(scripts.some((url) => /MapFeature|GlobeFallback/.test(url))).toBeFalsy();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await page.getByRole('button', { name: 'Map-Route' }).click();
+  await expect(page.getByRole('heading', { name: 'Map-Route' })).toBeVisible();
+  await expect.poll(() => scripts.some((url) => /MapFeature/.test(url))).toBeTruthy();
+  expect(scripts.some((url) => /GlobeFallback/.test(url))).toBeFalsy();
   await page.getByRole('button', { name: 'Open app menu' }).click();
   await page.locator('#theme-selector').selectOption('neon-japan');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'neon-japan');
