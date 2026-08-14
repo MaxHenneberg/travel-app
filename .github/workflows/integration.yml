@@ -30,6 +30,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:unit
       - run: npm run build
       - run: npm run test:traceability
       - name: Validate mappings against Jira

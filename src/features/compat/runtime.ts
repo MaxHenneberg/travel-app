@@ -1,13 +1,14 @@
-import './style.css';
-import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './lib/itinerary.js';
-import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
-import { buildGoogleMapsPlaceUrl } from './lib/google-maps.js';
-import { createTripStore } from './lib/trip-store.js';
-import { createAttachmentStore } from './lib/attachment-store.js';
-import { imageIsCached, resolveStopImage, validStopImages } from './lib/stop-images.js';
-import { applyTheme, readStoredTheme, themes } from './lib/theme.js';
+// @ts-nocheck -- parity adapter around the pre-migration rendering contract.
+import '../../style.css';
+import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from '../../lib/itinerary.js';
+import { buildHashRoute, tryParseHashRoute } from '../../lib/hash-route.js';
+import { buildGoogleMapsPlaceUrl } from '../../lib/google-maps.js';
+import { createTripStore } from '../../lib/trip-store.js';
+import { createAttachmentStore } from '../../lib/attachment-store.js';
+import { imageIsCached, resolveStopImage, validStopImages } from '../../lib/stop-images.js';
+import { applyTheme, readStoredTheme, themes } from '../../lib/theme.js';
 
-const app = document.querySelector('#app');
+let app;
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
 const attachmentStore = createAttachmentStore();
@@ -16,6 +17,8 @@ const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
   importError: null, installPrompt: null, online: navigator.onLine, theme: initialTheme.id, attachments: new Map(),
   attachmentUsage: { bytes: 0, count: 0, limitBytes: attachmentStore.limits.totalBytes }, attachmentError: '', focusAfterRender: '',
+  pendingShareId: new URL(window.location.href).searchParams.get('share-target') === 'confirm'
+    ? new URL(window.location.href).searchParams.get('id') : null,
 };
 
 const escapeHtml = (value = '') => String(value)
@@ -246,7 +249,7 @@ async function renderCollection(savedTrips) {
       <div><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
-      ${importErrorMarkup()}
+      ${shareTargetMarkup()}${importErrorMarkup()}
       <div class="collection-heading"><div><p class="eyebrow">Saved and published</p><h2>Trip collection</h2></div><span>${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}</span></div>
       ${trips.length ? `<div class="trip-grid">${trips.map((trip) => tripCard(trip)).join('')}</div>` : `<section class="empty-card"><h2>No trips on this device</h2><p>${state.online ? 'Import an itinerary to get started.' : 'Connect once to download a published trip, or import an itinerary file already on this device.'}</p></section>`}
     </main>
@@ -540,6 +543,23 @@ function bindCommon() {
   document.querySelector('#install-app')?.addEventListener('click', async () => {
     closeMenu(); await state.installPrompt?.prompt(); state.installPrompt = null; render();
   });
+  document.querySelector('#cancel-shared-file')?.addEventListener('click', () => {
+    state.pendingShareId = null;
+    history.replaceState(null, '', `${location.pathname}${location.hash}`);
+    render();
+  });
+  document.querySelector('#confirm-shared-file')?.addEventListener('click', () => {
+    const database = indexedDB.open('trailbook-share-target', 1);
+    database.onsuccess = () => {
+      const transaction = database.result.transaction('pending', 'readwrite');
+      const record = transaction.objectStore('pending').get(state.pendingShareId);
+      record.onsuccess = async () => {
+        if (record.result?.file) await importFile(record.result.file);
+        transaction.objectStore('pending').delete(state.pendingShareId);
+        state.pendingShareId = null;
+      };
+    };
+  });
 }
 
 async function hydrateStopPictures() {
@@ -626,7 +646,8 @@ async function seedCollection() {
 }
 
 async function loadRoute() {
-  const { route, error } = tryParseHashRoute(window.location.hash);
+  const hash = window.location.hash === '#/' ? '' : window.location.hash;
+  const { route, error } = tryParseHashRoute(hash);
   if (error) {
     state.view = 'trip'; state.trip = null; state.dayId = null;
     state.error = { title: 'This link is not safe to open', message: error.message };
@@ -665,9 +686,26 @@ async function loadRoute() {
   await render();
 }
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register(new URL('sw.js', baseUrl), { scope: import.meta.env.BASE_URL }).catch(() => {});
-window.addEventListener('hashchange', loadRoute);
-window.addEventListener('online', () => { state.online = true; loadRoute(); });
-window.addEventListener('offline', () => { state.online = false; render(); });
-window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); state.installPrompt = event; render(); });
-loadRoute();
+export function initializeLegacyApp(root) {
+  app = root;
+  const onHashChange = () => loadRoute();
+  const onOnline = () => { state.online = true; loadRoute(); };
+  const onOffline = () => { state.online = false; render(); };
+  const onInstallPrompt = (event) => { event.preventDefault(); state.installPrompt = event; render(); };
+  window.addEventListener('hashchange', onHashChange);
+  window.addEventListener('online', onOnline);
+  window.addEventListener('offline', onOffline);
+  window.addEventListener('beforeinstallprompt', onInstallPrompt);
+  loadRoute();
+  return () => {
+    window.removeEventListener('hashchange', onHashChange);
+    window.removeEventListener('online', onOnline);
+    window.removeEventListener('offline', onOffline);
+    window.removeEventListener('beforeinstallprompt', onInstallPrompt);
+  };
+}
+
+function shareTargetMarkup() {
+  if (!state.pendingShareId) return '';
+  return `<section class="notice-card" role="status" aria-label="Shared itinerary confirmation"><h2>Shared itinerary ready to review</h2><p>Nothing has been imported yet. Confirm to validate and save the shared file, or cancel without changing your trips.</p><button class="button primary" id="confirm-shared-file" type="button">Review and import shared file</button><button class="button subtle" id="cancel-shared-file" type="button">Cancel shared import</button></section>`;
+}

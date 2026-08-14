@@ -5,22 +5,47 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/create-pages-fallback.mjs",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "build": "vite build && node scripts/create-pages-fallback.mjs && npm run check:bundles",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "npm run test:unit && npm run test:traceability && npm run test:integration",
-    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test": "npm run typecheck && npm run lint && npm run test:unit && npm run test:traceability && npm run test:integration",
+    "test:unit": "node --test tests/unit/*.test.mjs && vitest run",
     "test:integration": "playwright test",
     "test:traceability": "node scripts/validate-traceability.mjs",
     "test:traceability:jira": "node scripts/validate-traceability.mjs --jira",
-    "report:jira": "node scripts/report-jira-results.mjs"
+    "report:jira": "node scripts/report-jira-results.mjs",
+    "check:bundles": "node scripts/check-bundle-budgets.mjs"
   },
   "dependencies": {
     "ajv": "8.17.1",
-    "ajv-formats": "3.0.1"
+    "ajv-formats": "3.0.1",
+    "dexie": "^4.2.1",
+    "pinia": "^3.0.3",
+    "vue": "^3.5.22",
+    "vue-router": "^4.6.3",
+    "workbox-core": "^7.3.0",
+    "workbox-precaching": "^7.3.0",
+    "workbox-routing": "^7.3.0",
+    "workbox-strategies": "^7.3.0"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
-    "vite": "8.2.1"
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vitest/coverage-v8": "^4.0.4",
+    "@vue/test-utils": "^2.4.6",
+    "eslint": "^9.37.0",
+    "eslint-plugin-vue": "^10.5.1",
+    "fake-indexeddb": "^6.2.4",
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.3",
+    "vite": "8.2.1",
+    "vite-plugin-pwa": "^1.1.0",
+    "vitest": "^4.0.4",
+    "vue-eslint-parser": "^10.2.0",
+    "vue-tsc": "^3.1.1"
   },
   "engines": {
     "node": ">=22"

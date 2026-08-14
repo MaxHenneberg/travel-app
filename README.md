@@ -2,6 +2,12 @@
 
 An offline-first, installable travel itinerary for Android and the web. Trailbook renders versioned JSON itineraries, keeps downloaded and imported trips on-device, shows ordered day routes in the app, opens individual places in Google Maps, and shares immutable GitHub Pages-safe deep links.
 
+## Vue architecture and offline lifecycle
+
+Trailbook is a static Vue 3 PWA built with Vite and strict TypeScript. `src/app` owns the Vue shell and hash router; `src/features` contains lazy feature boundaries; `src/composables` owns typed lifecycle behavior; `src/stores` is only for genuinely shared Pinia state; `src/domain` defines schema-v1 boundaries; and `src/repositories` owns persistence. The compatibility feature preserves the established DOM, stored values, and IndexedDB contracts while feature slices move to Vue SFCs. New UI uses `<script setup lang="ts">` and keeps feature-local state out of Pinia.
+
+The Workbox `injectManifest` service worker uses explicitly versioned caches. Published JSON and bounded public images may be cached; private attachment blobs and pending shared files remain device-local in IndexedDB and never enter a runtime cache or upload path. Share-target files stop at confirmation before validation/import. Optional background work follows document visibility. Map and truthful globe-fallback components remain dynamic imports and are checked by CI bundle budgets.
+
 ## Local development
 
 ```sh
