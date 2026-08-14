@@ -371,6 +371,9 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .status-success { color: var(--color-success); }
 .status-warning { color: var(--color-warning); }
 .status-error { color: var(--color-error); }
+.update-prompt { position: fixed; z-index: 60; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); display: grid; width: min(32rem, calc(100vw - 2rem)); gap: 1rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: 1rem; background: var(--color-surface); box-shadow: 0 .8rem 3rem var(--shadow-color); }
+.update-prompt p { margin: .35rem 0 0; color: var(--color-text-muted); }
+.update-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 
 @media (max-width: 520px) {
   .topbar { gap: .5rem; }
