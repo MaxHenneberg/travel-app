@@ -1,0 +1,1 @@
+import{n as e,o as t,r as n}from"./index-OKFCjJBJ.js";var r=[`href`],i=n({__name:`MapFeature`,props:{href:{}},setup(n){return(i,a)=>(t(),e(`a`,{href:n.href,target:`_blank`,rel:`noopener noreferrer`},`Open in Google Maps`,8,r))}});export{i as default};
