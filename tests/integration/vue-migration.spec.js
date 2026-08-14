@@ -54,6 +54,19 @@ test('TA-TRAVEL-121-03 @post-deploy supports upgrade-safe offline deep links and
   await page.getByRole('button', { name: 'Cancel shared import' }).click();
   await expect(page.getByRole('heading', { name: 'A long weekend in Lisbon' })).toBeVisible();
   await expect(page.locator('[data-trip-id="shared-migration-check"]')).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('trailbook:pwa-update-available', {
+    detail: { update: async () => sessionStorage.setItem('applied-update', 'yes') },
+  })));
+  await expect(page.getByRole('dialog', { name: 'Trailbook update ready' })).toBeVisible();
+  await page.getByRole('button', { name: 'Later' }).click();
+  expect(await page.evaluate(() => sessionStorage.getItem('applied-update'))).toBeNull();
+  await expect(page.getByRole('status')).toContainText('Update postponed');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('trailbook:pwa-update-available', {
+    detail: { update: async () => sessionStorage.setItem('applied-update', 'yes') },
+  })));
+  await page.getByRole('button', { name: 'Update now' }).click();
+  expect(await page.evaluate(() => sessionStorage.getItem('applied-update'))).toBe('yes');
+  await expect(page.getByRole('status')).toContainText('up to date');
 });
 
 test('TA-TRAVEL-121-04 @pr @post-deploy preserves responsive themes and lazy heavy features', async ({ page }) => {

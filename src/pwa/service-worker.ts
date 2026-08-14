@@ -8,7 +8,6 @@ declare let self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<unknown> };
 
 const CACHE_VERSION = 'vue-v1';
 const IMAGE_CACHE = 'trailbook-stop-images-v1';
-self.skipWaiting();
 clientsClaim();
 precacheAndRoute(self.__WB_MANIFEST);
 
@@ -82,6 +81,10 @@ registerRoute(
 );
 
 self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
   if (event.data?.type !== 'PURGE_IMAGE' || typeof event.data.url !== 'string') return;
   event.waitUntil(caches.open(IMAGE_CACHE).then((cache) => cache.delete(event.data.url)));
 });

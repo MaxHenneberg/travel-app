@@ -15,6 +15,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src/pwa',
       filename: 'service-worker.ts',
+      injectRegister: false,
       injectManifest: { globPatterns: ['**/*.{js,css,html,json,svg,png}'] },
       manifest: false,
     }),
