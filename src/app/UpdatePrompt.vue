@@ -1,24 +1,13 @@
 <script setup lang="ts">
-import { nextTick, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAppStore } from '../stores/app';
 
 const props = defineProps<{ applyUpdate: () => Promise<void> }>();
 const store = useAppStore();
 const { updateAvailable, updating, updateStatus } = storeToRefs(store);
-let previousFocus: HTMLElement | null = null;
-
-watch(updateAvailable, async (available) => {
-  if (!available) return;
-  previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  await nextTick();
-  document.querySelector<HTMLElement>('[data-update-now]')?.focus();
-});
 
 async function later() {
   store.postponeUpdate();
-  await nextTick();
-  previousFocus?.focus();
 }
 
 async function updateNow() {
@@ -33,12 +22,13 @@ async function updateNow() {
 </script>
 
 <template>
-  <section
+  <aside
     v-if="updateAvailable"
     class="update-prompt"
-    role="dialog"
     aria-label="Trailbook update ready"
     aria-describedby="update-description"
+    aria-live="polite"
+    aria-atomic="true"
   >
     <div>
       <strong id="update-title">Update ready</strong>
@@ -65,7 +55,7 @@ async function updateNow() {
         Later
       </button>
     </div>
-  </section>
+  </aside>
   <p
     v-if="updateStatus"
     class="sr-only"
