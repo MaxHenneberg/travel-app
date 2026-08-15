@@ -238,9 +238,15 @@ function topbar() {
 
 function noticeMarkup() { return state.notice ? `<div class="notice" role="status">${escapeHtml(state.notice)}</div>` : ''; }
 
+function tripLinkShareActionMarkup() {
+  return `<button class="hero-icon-action hero-link-share-button" id="share-trip" type="button" aria-label="Share this trip as a published link" title="Share this trip as a published link">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5m-7.6 6.9 7.6 4.5"/></svg>
+  </button>`;
+}
+
 function trailbookExportActionMarkup() {
   return `<span class="hero-file-export">
-    <button class="hero-export-button" id="export-trailbook" type="button" aria-label="Export portable Trailbook file" aria-describedby="trailbook-export-status" title="Export portable Trailbook file">
+    <button class="hero-icon-action hero-export-button" id="export-trailbook" type="button" aria-label="Export portable Trailbook file" aria-describedby="trailbook-export-status" title="Export portable Trailbook file">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 15v4h14v-4"/></svg>
     </button>
     <span class="hero-export-status" id="trailbook-export-status" role="status" data-state="idle">Portable file export ready.</span>
@@ -354,7 +360,7 @@ async function renderTrip(savedTrips) {
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
-      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button>${day ? '' : trailbookExportActionMarkup()}</div>
+      <div class="hero-actions">${day ? '<button class="primary" id="share-trip" type="button">Share this day</button>' : `${tripLinkShareActionMarkup()}${trailbookExportActionMarkup()}`}</div>
     </div></header>
     <main class="layout ${day ? '' : 'overview-layout'}" data-testid="primary-content">
       ${day ? navigation(days, day) : ''}
@@ -431,15 +437,25 @@ async function importFile(file) {
 }
 
 async function shareCurrent() {
+  const button = document.querySelector('#share-trip');
   const hash = tripHash(state.trip, state.dayId);
   const url = new URL(hash, window.location.href.split('#')[0]).href;
   const data = { title: tripTitle(state.trip), text: `Open ${tripTitle(state.trip)} in Trailbook`, url };
+  if (button) {
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+  }
   try {
     if (navigator.share) { await navigator.share(data); return; }
     await navigator.clipboard.writeText(url);
     showNotice('Link copied to clipboard.');
   } catch (error) {
     if (error?.name !== 'AbortError') showNotice('Could not share automatically. Copy the address from your browser.');
+  } finally {
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
   }
 }
 

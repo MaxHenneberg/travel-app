@@ -127,12 +127,13 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .hero-meta { display: flex; flex-wrap: wrap; gap: .8rem 1.4rem; margin: 1.5rem 0 0; color: var(--color-header-muted); }
 .hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
 .hero-file-export { position: relative; display: inline-flex; }
-.hero-export-button { position: relative; width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; color: var(--color-header-text); border: 1px solid var(--overlay-border); background: transparent; }
-.hero-export-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.hero-export-button:hover { color: var(--color-on-accent); border-color: var(--color-accent); background: var(--color-accent); }
-.hero-export-button[aria-busy="true"] { cursor: wait; }
-.hero-export-button[aria-busy="true"] svg { opacity: 0; }
-.hero-export-button[aria-busy="true"]::after { position: absolute; width: 18px; height: 18px; content: ''; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: trailbook-spin .7s linear infinite; }
+.hero-icon-action { position: relative; width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; color: var(--color-header-text); border: 1px solid var(--overlay-border); background: transparent; }
+.hero-icon-action svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hero-icon-action:hover { color: var(--color-on-accent); border-color: var(--color-accent); background: var(--color-accent); }
+.hero-icon-action:active { transform: translateY(1px); }
+.hero-icon-action[aria-busy="true"] { cursor: wait; }
+.hero-icon-action[aria-busy="true"] svg { opacity: 0; }
+.hero-icon-action[aria-busy="true"]::after { position: absolute; width: 18px; height: 18px; content: ''; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: trailbook-spin .7s linear infinite; }
 .hero-export-status { position: absolute; z-index: 3; top: calc(100% + .55rem); left: 50%; width: max-content; max-width: min(19rem, calc(100vw - 2rem)); padding: .5rem .7rem; color: var(--color-header-text); border: 1px solid var(--overlay-border); border-radius: .65rem; background: var(--color-header); box-shadow: 0 .65rem 1.8rem var(--shadow-color); font-size: .78rem; line-height: 1.35; transform: translateX(-50%); }
 .hero-export-status[data-state="idle"] { overflow: hidden; width: 1px; height: 1px; padding: 0; margin: -1px; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .hero-export-status[data-state="success"] { border-color: var(--color-success); }
@@ -359,7 +360,7 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
   .day-route { grid-template-columns: 1fr; }
 }
 
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .hero-export-button[aria-busy="true"]::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .hero-icon-action[aria-busy="true"]::after { animation: none; } }
 
 /* Feature surfaces consume only the shared semantic layer. */
 .collection-hero, .hero, .topbar, .notice { color: var(--color-header-text); background: var(--color-header); }
