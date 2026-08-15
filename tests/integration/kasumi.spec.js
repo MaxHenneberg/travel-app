@@ -8,13 +8,15 @@ async function openTrip(page) {
   await expect(page.getByTestId('kasumi-decoration')).toHaveCount(1);
 }
 
-async function switchTheme(page, theme) {
+async function switchTheme(page, theme, expectedScrollTop) {
   await page.locator('#menu-toggle').click();
+  if (expectedScrollTop !== undefined) expect(await page.evaluate(() => window.scrollY)).toBe(expectedScrollTop);
   await page.getByLabel('Theme').selectOption(theme);
   await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 }
 
-test('TA-TRAVEL-112-01 @pr @post-deploy renders two theme-aware Kasumi depths with bounded scroll parallax', async ({ page }) => {
+test('TA-TRAVEL-112-01 @pr @post-deploy renders two theme-aware Kasumi depths with bounded scroll parallax', async ({ page }, testInfo) => {
+  if (testInfo.project.name === 'chromium') await page.setViewportSize({ width: 1265, height: 900 });
   await openTrip(page);
   const header = page.locator('[data-kasumi-header]');
   const title = page.getByTestId('trip-title');
@@ -41,9 +43,12 @@ test('TA-TRAVEL-112-01 @pr @post-deploy renders two theme-aware Kasumi depths wi
   expect(Number.parseFloat(shifted.far)).toBeGreaterThan(0);
   expect(Number.parseFloat(shifted.near)).toBeGreaterThan(Number.parseFloat(shifted.far));
 
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.mouse.wheel(0, 1081);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(1000);
   const url = page.url();
   const scrollTop = await page.evaluate(() => window.scrollY);
-  await switchTheme(page, 'neon-japan');
+  await switchTheme(page, 'neon-japan', scrollTop);
   const neon = await header.evaluate((node) => ({
     far: getComputedStyle(node.querySelector('[data-kasumi-layer="far"]')).stroke,
     near: getComputedStyle(node.querySelector('[data-kasumi-layer="near"]')).stroke,

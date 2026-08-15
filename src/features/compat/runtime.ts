@@ -530,6 +530,12 @@ function bindCommon() {
   const menuToggle = document.querySelector('#menu-toggle');
   const backdrop = document.querySelector('#menu-backdrop');
   let closeTimer;
+  let menuPageScroll = { left: 0, top: 0 };
+  const restoreMenuPageScroll = () => window.scrollTo({
+    left: menuPageScroll.left,
+    top: menuPageScroll.top,
+    behavior: 'instant',
+  });
   const closeMenu = ({ restoreFocus = false } = {}) => {
     if (!menu || !menuToggle || menu.hidden) return;
     window.clearTimeout(closeTimer);
@@ -539,7 +545,8 @@ function bindCommon() {
     document.body.classList.remove('menu-open');
     menuToggle.setAttribute('aria-expanded', 'false');
     menuToggle.setAttribute('aria-label', 'Open app menu');
-    if (restoreFocus) menuToggle.focus();
+    if (restoreFocus) menuToggle.focus({ preventScroll: true });
+    restoreMenuPageScroll();
     closeTimer = window.setTimeout(() => {
       if (!menu.classList.contains('open')) {
         menu.hidden = true;
@@ -550,17 +557,20 @@ function bindCommon() {
   menuToggle?.addEventListener('click', () => {
     const opening = menu.hidden;
     if (!opening) { closeMenu({ restoreFocus: true }); return; }
+    menuPageScroll = { left: window.scrollX, top: window.scrollY };
     window.clearTimeout(closeTimer);
     menu.hidden = false;
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('menu-open');
     menuToggle.setAttribute('aria-expanded', 'true');
     menuToggle.setAttribute('aria-label', 'Close app menu');
+    restoreMenuPageScroll();
     requestAnimationFrame(() => {
       menu.classList.add('open');
       backdrop?.classList.add('open');
       menu.setAttribute('aria-hidden', 'false');
-      menu.querySelector('select, a, button, label')?.focus();
+      menu.querySelector('select, a, button, label')?.focus({ preventScroll: true });
+      restoreMenuPageScroll();
     });
   });
   document.onkeydown = (event) => {
