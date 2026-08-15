@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-theme="sakura">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#16302b" />
+    <meta name="description" content="An offline-first travel itinerary for Android and the web." />
+    <link rel="icon" href="/travel-app/pr-preview/pr-20/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/travel-app/pr-preview/pr-20/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/travel-app/pr-preview/pr-20/icons/travel-192.png" />
+    <title>Trailbook</title>
+    <script>
+      (() => {
+        const supported = new Set(['sakura', 'neon-japan']);
+        let stored;
+        try { stored = localStorage.getItem('trailbook.theme'); } catch { /* Use the bundled default. */ }
+        const theme = supported.has(stored) ? stored : 'sakura';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme === 'neon-japan' ? 'dark' : 'light';
+      })();
+    </script>
+    <script type="module" crossorigin src="/travel-app/pr-preview/pr-20/assets/index-BsF3bar0.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
