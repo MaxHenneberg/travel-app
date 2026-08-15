@@ -41,7 +41,7 @@ test('TA-TRAVEL-7-01 @pr renders activity, timing, transport, and practical deta
   const activity = page.locator('[data-activity-id="tram"]');
   await expect(activity).toContainText('17:00');
   await expect(activity).toContainText('25 min');
-  await activity.getByText('Practical details').click();
+  await activity.getByText('Details', { exact: true }).click();
   await expect(activity).toContainText('28E');
   await expect(activity).toContainText('Sé → Graça');
   const timelineSpacing = await activity.evaluate((node) => {
