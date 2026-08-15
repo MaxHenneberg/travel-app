@@ -146,6 +146,19 @@ h1, h2, h3 { font-family: ui-rounded, "Arial Rounded MT Bold", ui-sans-serif, sy
 h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-height: .98; letter-spacing: -.065em; }
 .hero-meta { display: flex; flex-wrap: wrap; gap: .8rem 1.4rem; margin: 1.5rem 0 0; color: var(--color-header-muted); }
 .hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
+.hero-file-export { position: relative; display: inline-flex; }
+.hero-icon-action { position: relative; width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; color: var(--color-header-text); border: 1px solid var(--overlay-border); background: transparent; }
+.hero-icon-action svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hero-icon-action:hover { color: var(--color-on-accent); border-color: var(--color-accent); background: var(--color-accent); }
+.hero-icon-action:active { transform: translateY(1px); }
+.hero-icon-action[aria-busy="true"] { cursor: wait; }
+.hero-icon-action[aria-busy="true"] svg { opacity: 0; }
+.hero-icon-action[aria-busy="true"]::after { position: absolute; width: 18px; height: 18px; content: ''; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: trailbook-spin .7s linear infinite; }
+.hero-export-status { position: absolute; z-index: 3; top: calc(100% + .55rem); left: 50%; width: max-content; max-width: min(19rem, calc(100vw - 2rem)); padding: .5rem .7rem; color: var(--color-header-text); border: 1px solid var(--overlay-border); border-radius: .65rem; background: var(--color-header); box-shadow: 0 .65rem 1.8rem var(--shadow-color); font-size: .78rem; line-height: 1.35; transform: translateX(-50%); }
+.hero-export-status[data-state="idle"] { overflow: hidden; width: 1px; height: 1px; padding: 0; margin: -1px; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.hero-export-status[data-state="success"] { border-color: var(--color-success); }
+.hero-export-status[data-state="error"] { border-color: var(--color-error); }
+@keyframes trailbook-spin { to { transform: rotate(360deg); } }
 
 .button, button {
   display: inline-flex;
@@ -167,6 +180,7 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .button.danger, button.danger { color: var(--danger); border: 1px solid var(--color-error); background: var(--color-surface); }
 
 .layout { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr); gap: clamp(1.2rem, 4vw, 3rem); width: min(calc(100% - 2rem), 76rem); margin: -4.5rem auto 4rem; }
+.layout.overview-layout { grid-template-columns: minmax(0, 1fr); width: min(calc(100% - 2rem), 60rem); }
 .layout > * { min-width: 0; }
 .sidebar, .day-panel, .trip-overview, .trip-card, .empty-card, .error-card { border: 1px solid var(--color-border); border-radius: 1.4rem; background: var(--paper); box-shadow: 0 1.2rem 4rem var(--shadow-color); }
 .sidebar { align-self: start; min-width: 0; max-width: 100%; padding: 1.25rem; }
@@ -373,6 +387,7 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
   html { scroll-behavior: auto; }
   .kasumi-layer { transform: none !important; will-change: auto; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  .hero-icon-action[aria-busy="true"]::after { animation: none; }
 }
 
 /* Feature surfaces consume only the shared semantic layer. */

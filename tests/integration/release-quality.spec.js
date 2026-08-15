@@ -79,7 +79,7 @@ test('TA-TRAVEL-12-02 @pr @post-deploy completes the critical Android regression
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Your trips' })).toBeVisible();
   await page.getByRole('link', { name: 'Open trip overview' }).click();
-  await page.getByRole('link', { name: /river$/i }).click();
+  await page.locator('.overview-day-card').filter({ has: page.getByRole('heading', { name: /river$/i }) }).click();
   await expect(page.getByRole('heading', { name: /river$/i })).toBeVisible();
   const mapLink = page.getByRole('link', { name: /Google Maps/i }).first();
   await expect(mapLink).toHaveAttribute('href', /^https:\/\/www\.google\.com\/maps\//);

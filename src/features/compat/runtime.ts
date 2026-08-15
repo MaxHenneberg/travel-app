@@ -8,6 +8,7 @@ import { countryName, createCountryHistoryStore } from '../../lib/country-histor
 import { createAttachmentStore } from '../../lib/attachment-store.js';
 import { imageIsCached, resolveStopImage, validStopImages } from '../../lib/stop-images.js';
 import { applyTheme, readStoredTheme, themes } from '../../lib/theme.js';
+import { createTrailbookExport, shareOrDownloadTrailbook } from '../../lib/trailbook-export.js';
 import { createKasumiParallax } from '../../lib/kasumi.js';
 
 let app;
@@ -246,7 +247,7 @@ function topbar() {
     <nav class="app-menu" id="app-menu" aria-label="App menu" aria-hidden="true" hidden>
       <div class="app-menu-heading"><strong>App menu</strong><button class="drawer-close" id="drawer-close" type="button" aria-label="Close app menu">&times;</button></div>
       <label class="theme-control" for="theme-selector"><span>Theme</span><select id="theme-selector" aria-describedby="active-theme-status">${themes.map((theme) => `<option value="${theme.id}" ${theme.id === state.theme ? 'selected' : ''}>${theme.name}</option>`).join('')}</select></label>
-      <label class="menu-action import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,.json"></label>
+      <label class="menu-action import-label">Import itinerary JSON<input id="trip-import" type="file" accept="application/json,application/vnd.trailbook.itinerary+json,.json,.trailbook"></label>
       ${schemaExportLink('menu-action')}
       <button class="menu-action" id="install-app" type="button" ${state.installPrompt ? '' : 'hidden'}>Install app</button>
     </nav>
@@ -255,6 +256,21 @@ function topbar() {
 }
 
 function noticeMarkup() { return state.notice ? `<div class="notice" role="status">${escapeHtml(state.notice)}</div>` : ''; }
+
+function tripLinkShareActionMarkup() {
+  return `<button class="hero-icon-action hero-link-share-button" id="share-trip" type="button" aria-label="Share this trip as a published link" title="Share this trip as a published link">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5m-7.6 6.9 7.6 4.5"/></svg>
+  </button>`;
+}
+
+function trailbookExportActionMarkup() {
+  return `<span class="hero-file-export">
+    <button class="hero-icon-action hero-export-button" id="export-trailbook" type="button" aria-label="Export portable Trailbook file" aria-describedby="trailbook-export-status" title="Export portable Trailbook file">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 15v4h14v-4"/></svg>
+    </button>
+    <span class="hero-export-status" id="trailbook-export-status" role="status" data-state="idle">Portable file export ready.</span>
+  </span>`;
+}
 
 function bottomNavigation() {
   const items = [
@@ -365,10 +381,10 @@ async function renderTrip(savedTrips) {
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
-      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button></div>
+      <div class="hero-actions">${day ? '<button class="primary" id="share-trip" type="button">Share this day</button>' : `${tripLinkShareActionMarkup()}${trailbookExportActionMarkup()}`}</div>
     </div></header>
-    <main class="layout" data-testid="primary-content">
-      ${navigation(days, day)}
+    <main class="layout ${day ? '' : 'overview-layout'}" data-testid="primary-content">
+      ${day ? navigation(days, day) : ''}
       <section class="content" aria-live="polite">
         ${importErrorMarkup()}
         ${state.attachmentError ? `<div class="import-error attachment-error" role="alert">${escapeHtml(state.attachmentError)}</div>` : ''}
@@ -442,15 +458,54 @@ async function importFile(file) {
 }
 
 async function shareCurrent() {
+  const button = document.querySelector('#share-trip');
   const hash = tripHash(state.trip, state.dayId);
   const url = new URL(hash, window.location.href.split('#')[0]).href;
   const data = { title: tripTitle(state.trip), text: `Open ${tripTitle(state.trip)} in Trailbook`, url };
+  if (button) {
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+  }
   try {
     if (navigator.share) { await navigator.share(data); return; }
     await navigator.clipboard.writeText(url);
     showNotice('Link copied to clipboard.');
   } catch (error) {
     if (error?.name !== 'AbortError') showNotice('Could not share automatically. Copy the address from your browser.');
+  } finally {
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
+  }
+}
+
+async function exportCurrentTrip() {
+  const button = document.querySelector('#export-trailbook');
+  const status = document.querySelector('#trailbook-export-status');
+  if (!button || !status) return;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  status.setAttribute('role', 'status');
+  status.dataset.state = 'busy';
+  status.textContent = 'Preparing portable fileâ€¦';
+  try {
+    const { file } = createTrailbookExport(state.trip);
+    const result = await shareOrDownloadTrailbook(file);
+    status.textContent = result === 'shared'
+      ? 'Trailbook file shared. Nothing was uploaded by Trailbook.'
+      : 'Trailbook file downloaded. Nothing was uploaded.';
+    status.dataset.state = 'success';
+  } catch (error) {
+    const path = error?.path ? ` at ${error.path}` : '';
+    status.setAttribute('role', 'alert');
+    status.dataset.state = 'error';
+    status.textContent = `This trip cannot be exported because its itinerary is invalid${path}. ${error?.message || 'Fix the itinerary and try again.'}`;
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
   }
 }
 
@@ -616,6 +671,7 @@ function bindCommon() {
     if (!state.online) { event.preventDefault(); showNotice('Maps needs a connection. Your itinerary is still available offline.'); }
   }));
   document.querySelector('#share-trip')?.addEventListener('click', shareCurrent);
+  document.querySelector('#export-trailbook')?.addEventListener('click', exportCurrentTrip);
   document.querySelectorAll('[data-attachment-input]').forEach((input) => input.addEventListener('change', () => addAttachments(input)));
   document.querySelectorAll('[data-attachment-trigger]').forEach((button) => button.addEventListener('click', () => button.parentElement.querySelector('[data-attachment-input]').click()));
   document.querySelectorAll('[data-attachment-open]').forEach((button) => button.addEventListener('click', () => openAttachment(button.dataset.attachmentOpen)));
