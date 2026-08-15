@@ -238,14 +238,13 @@ function topbar() {
 
 function noticeMarkup() { return state.notice ? `<div class="notice" role="status">${escapeHtml(state.notice)}</div>` : ''; }
 
-function trailbookExportMarkup() {
-  return `<section class="trailbook-export" aria-labelledby="trailbook-export-title">
-    <div><p class="eyebrow">Private file export</p><h3 id="trailbook-export-title">Take this trip with you</h3>
-      <p>Creates one portable <strong>.trailbook</strong> itinerary on this device. It never uploads anything. Local documents, cached stop pictures, browser data, and device paths are not included.</p>
-      <p class="trailbook-export-separation">This file action is separate from <strong>Share this trip</strong>, which sends a published link.</p></div>
-    <button class="button primary" id="export-trailbook" type="button" aria-describedby="trailbook-export-title trailbook-export-status">Export &amp; share file</button>
-    <p class="trailbook-export-status" id="trailbook-export-status" role="status">You choose when to export. On supported Android devices, the system share sheet opens; otherwise the file downloads.</p>
-  </section>`;
+function trailbookExportActionMarkup() {
+  return `<span class="hero-file-export">
+    <button class="hero-export-button" id="export-trailbook" type="button" aria-label="Export portable Trailbook file" aria-describedby="trailbook-export-status" title="Export portable Trailbook file">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 15v4h14v-4"/></svg>
+    </button>
+    <span class="hero-export-status" id="trailbook-export-status" role="status" data-state="idle">Portable file export ready.</span>
+  </span>`;
 }
 
 function bottomNavigation() {
@@ -355,10 +354,10 @@ async function renderTrip(savedTrips) {
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
-      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button></div>
+      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button>${day ? '' : trailbookExportActionMarkup()}</div>
     </div></header>
-    <main class="layout" data-testid="primary-content">
-      ${navigation(days, day)}
+    <main class="layout ${day ? '' : 'overview-layout'}" data-testid="primary-content">
+      ${day ? navigation(days, day) : ''}
       <section class="content" aria-live="polite">
         ${importErrorMarkup()}
         ${state.attachmentError ? `<div class="import-error attachment-error" role="alert">${escapeHtml(state.attachmentError)}</div>` : ''}
@@ -374,7 +373,6 @@ async function renderTrip(savedTrips) {
           <header><p class="eyebrow">At a glance</p><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day to see its complete itinerary.</p>'}</header>
           ${attachmentPanel({ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }, 'Trip documents')}
           <button class="button danger clear-trip-attachments" type="button" data-clear-trip-attachments>Clear all local documents for this trip</button>
-          ${trailbookExportMarkup()}
           ${days.length ? `<ol class="overview-day-list">${days.map(dayPreview).join('')}</ol>` : '<section class="empty-card" data-testid="empty-itinerary"><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></section>'}
         </article>`}
       </section>
@@ -452,16 +450,19 @@ async function exportCurrentTrip() {
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
   status.setAttribute('role', 'status');
-  status.textContent = 'Validating and preparing your private trip fileâ€¦';
+  status.dataset.state = 'busy';
+  status.textContent = 'Preparing portable fileâ€¦';
   try {
     const { file } = createTrailbookExport(state.trip);
     const result = await shareOrDownloadTrailbook(file);
     status.textContent = result === 'shared'
       ? 'Trailbook file shared. Nothing was uploaded by Trailbook.'
       : 'Trailbook file downloaded. Nothing was uploaded.';
+    status.dataset.state = 'success';
   } catch (error) {
     const path = error?.path ? ` at ${error.path}` : '';
     status.setAttribute('role', 'alert');
+    status.dataset.state = 'error';
     status.textContent = `This trip cannot be exported because its itinerary is invalid${path}. ${error?.message || 'Fix the itinerary and try again.'}`;
   } finally {
     if (button.isConnected) {
