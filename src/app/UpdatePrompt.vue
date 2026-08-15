@@ -25,15 +25,15 @@ async function updateNow() {
   <aside
     v-if="updateAvailable"
     class="update-prompt"
-    aria-labelledby="update-title"
+    aria-label="Trailbook update ready"
     aria-describedby="update-description"
     aria-live="polite"
     aria-atomic="true"
   >
     <div>
-      <strong id="update-title">Trailbook update ready</strong>
+      <strong id="update-title">Update ready</strong>
       <p id="update-description">
-        Update to the complete new version now, or keep using this version until later.
+        Now or later. This view stays open.
       </p>
     </div>
     <div class="update-actions">

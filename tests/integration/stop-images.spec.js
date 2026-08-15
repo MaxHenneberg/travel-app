@@ -186,7 +186,8 @@ test('TA-TRAVEL-80-03 @pr reuses cached images offline without remote attempts',
 
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
-  await expect(page.locator('#network-status')).toContainText(/Offline.*saved copy/);
+  await expect(page.locator('#network-status')).toHaveText('Offline');
+  await expect(page.locator('#network-status')).toHaveAttribute('aria-label', /saved copy/);
   await expect(page.locator('[data-activity-id="cached"] .stop-picture-frame')).toHaveClass(/loaded/);
   await page.locator('[data-activity-id="uncached"]').scrollIntoViewIfNeeded();
   await expect(page.locator('[data-activity-id="uncached"] .stop-picture-placeholder')).toBeVisible();
