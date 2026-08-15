@@ -1,18 +1,31 @@
 /// <reference lib="webworker" />
 import { clientsClaim } from 'workbox-core';
-import { precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching';
+import { precacheAndRoute, createHandlerBoundToURL, cleanupOutdatedCaches } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
-import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { CacheFirst, NetworkFirst } from 'workbox-strategies';
 import { purgeExpiredImports, putPendingImport } from '../lib/pending-import.js';
 import { validateImportTransport } from '../lib/trailbook-import.js';
 
 declare let self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<unknown> };
 
-const CACHE_VERSION = 'vue-v1';
+// Runtime data is versioned with the schema contract. Immutable itinerary URLs
+// stay on the controlling app version until the user accepts a complete update.
+const CACHE_VERSION = 'schema-v1-app-v3';
+const DATA_CACHE = `trailbook-data-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `trailbook-runtime-${CACHE_VERSION}`;
 const IMAGE_CACHE = 'trailbook-stop-images-v1';
 clientsClaim();
+cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
-self.addEventListener('activate', (event) => event.waitUntil(purgeExpiredImports()));
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    await purgeExpiredImports();
+    const current = new Set([DATA_CACHE, RUNTIME_CACHE, IMAGE_CACHE]);
+    const obsolete = (await caches.keys()).filter((name) =>
+      (name.startsWith('trailbook-data-') || name.startsWith('trailbook-runtime-')) && !current.has(name));
+    await Promise.all(obsolete.map((name) => caches.delete(name)));
+  })());
+});
 
 function shareRedirect(parameters: Record<string, string>): Response {
   const destination = new URL('./', self.registration.scope);
@@ -58,7 +71,7 @@ self.addEventListener('fetch', (event) => {
 registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')));
 registerRoute(
   ({ url }) => url.origin === self.location.origin && /\/data\/(schemas|itineraries)\//.test(url.pathname),
-  new StaleWhileRevalidate({ cacheName: `trailbook-data-${CACHE_VERSION}` }),
+  new CacheFirst({ cacheName: DATA_CACHE }),
 );
 
 async function boundedImage(request: Request): Promise<Response> {
@@ -92,7 +105,7 @@ registerRoute(
 );
 registerRoute(
   ({ url }) => url.origin === self.location.origin,
-  new NetworkFirst({ cacheName: `trailbook-runtime-${CACHE_VERSION}`, networkTimeoutSeconds: 4 }),
+  new NetworkFirst({ cacheName: RUNTIME_CACHE, networkTimeoutSeconds: 4 }),
 );
 
 self.addEventListener('message', (event) => {

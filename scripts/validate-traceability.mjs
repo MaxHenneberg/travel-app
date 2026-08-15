@@ -20,7 +20,15 @@ for (const testCase of mapping.cases) {
   assert(!seenJiraKeys.has(testCase.jiraKey), `Jira task mapped more than once: ${testCase.jiraKey}`);
   assert(stories.has(testCase.story), `${testCase.id} references undeclared Story ${testCase.story}`);
   assert(match[1] === testCase.story, `${testCase.id} encodes a different Story from ${testCase.story}`);
-  assert((spec.match(new RegExp(testCase.id, 'g')) ?? []).length === 1, `${testCase.id} must appear exactly once in the Playwright spec`);
+  const occurrences = (spec.match(new RegExp(testCase.id, 'g')) ?? []).length;
+  if (testCase.evidence === 'manual') {
+    assert(testCase.execution.length === 1 && testCase.execution[0] === 'manual-release', `${testCase.id} manual evidence must only use manual-release`);
+    assert(testCase.profiles.length === 1 && testCase.profiles[0] === 'physical-android', `${testCase.id} manual evidence must use physical-android`);
+    assert(occurrences === 0, `${testCase.id} is manual and must not appear in Playwright`);
+  } else {
+    assert(testCase.evidence === undefined || testCase.evidence === 'automated', `${testCase.id} has an unknown evidence type`);
+    assert(occurrences === 1, `${testCase.id} must appear exactly once in the Playwright spec`);
+  }
   seenIds.add(testCase.id);
   seenJiraKeys.add(testCase.jiraKey);
 }

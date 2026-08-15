@@ -67,7 +67,7 @@ test('TA-TRAVEL-89-04 @pr blocks unsafe execution and attachment leakage', async
   expect(await page.evaluate(() => window.pwned)).toBeUndefined();
   await panel.locator('input').setInputFiles({ name: '<b>private.txt</b>', mimeType: 'text/plain', buffer: Buffer.from('SECRET-BYTES') });
   await expect(panel.locator('b')).toHaveCount(0);
-  const sharedUrl = await page.getByRole('button', { name: 'Share this trip' }).evaluate(async (button) => {
+  const sharedUrl = await page.getByRole('button', { name: 'Share this trip as a published link', exact: true }).evaluate(async (button) => {
     Object.defineProperty(navigator, 'share', { configurable: true, value: async (data) => { window.shared = data; } });
     button.click(); await new Promise((resolve) => setTimeout(resolve)); return window.shared.url;
   });

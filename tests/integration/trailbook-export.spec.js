@@ -30,13 +30,62 @@ async function captureNativeShare(page) {
       window.trailbookShared = { name: file.name, type: file.type, text: await file.text() };
     } });
   });
-  await page.getByRole('button', { name: 'Export & share file' }).click();
+  await page.getByRole('button', { name: 'Export portable Trailbook file' }).click();
   await expect.poll(() => page.evaluate(() => Boolean(window.trailbookShared))).toBeTruthy();
   return page.evaluate(() => window.trailbookShared);
 }
 
 test('TA-TRAVEL-94-01 @pr @post-deploy exports one schema-valid portable itinerary with stable IDs', async ({ page }) => {
   await importFixture(page);
+  const heroActions = page.locator('.hero-actions');
+  const linkShareButton = page.getByRole('button', { name: 'Share this trip as a published link', exact: true });
+  const exportButton = page.getByRole('button', { name: 'Export portable Trailbook file' });
+  await expect(heroActions.getByRole('button')).toHaveCount(2);
+  await expect(linkShareButton).toHaveCount(1);
+  await expect(exportButton).toHaveCount(1);
+  await expect(linkShareButton).toHaveAttribute('title', 'Share this trip as a published link');
+  await expect(exportButton).toHaveAttribute('title', 'Export portable Trailbook file');
+  await expect(page.locator('.hero').getByRole('button', { name: 'Share this trip as a published link', exact: true })).toBeVisible();
+  await expect(page.locator('.hero').getByRole('button', { name: 'Export portable Trailbook file' })).toBeVisible();
+  expect(await linkShareButton.evaluate((element) => element.textContent.trim())).toBe('');
+  expect(await exportButton.evaluate((element) => element.textContent.trim())).toBe('');
+  await expect(page.locator('.trailbook-export')).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Itinerary days' })).toHaveCount(0);
+  for (const button of [linkShareButton, exportButton]) {
+    const compactTarget = await button.evaluate((element) => element.getBoundingClientRect().toJSON());
+    expect(compactTarget.width).toBeGreaterThanOrEqual(44);
+    expect(compactTarget.width).toBeLessThanOrEqual(52);
+    expect(compactTarget.height).toBeGreaterThanOrEqual(44);
+    expect(compactTarget.height).toBeLessThanOrEqual(52);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await linkShareButton.press('Tab');
+  await expect(exportButton).toBeFocused();
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'share', { configurable: true, value: (data) => {
+      window.tripLinkShare = data;
+      return new Promise((resolve) => { window.finishTripLinkShare = resolve; });
+    } });
+  });
+  await linkShareButton.click();
+  await expect(linkShareButton).toHaveAttribute('aria-busy', 'true');
+  await page.evaluate(() => window.finishTripLinkShare());
+  await expect(linkShareButton).not.toHaveAttribute('aria-busy', 'true');
+  const linkShare = await page.evaluate(() => window.tripLinkShare);
+  expect(linkShare.url).toContain('#/trip/portable-kyoto/v/1');
+  expect(linkShare.files).toBeUndefined();
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => true });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: () => new Promise((resolve) => { window.finishTrailbookShare = resolve; }) });
+  });
+  await exportButton.click();
+  await expect(exportButton).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#trailbook-export-status')).toHaveAttribute('data-state', 'busy');
+  await page.evaluate(() => window.finishTrailbookShare());
+  await expect(exportButton).not.toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#trailbook-export-status')).toHaveAttribute('data-state', 'success');
   const shared = await captureNativeShare(page);
   expect(shared.name).toBe('Kyoto-Autumn-2026.trailbook');
   expect(shared.type).toBe('application/vnd.trailbook.itinerary+json');
@@ -54,7 +103,18 @@ test('TA-TRAVEL-94-01 @pr @post-deploy exports one schema-valid portable itinera
   await expect(page.getByRole('heading', { name: 'Review before importing' })).toBeVisible();
   await page.getByRole('button', { name: 'Import and open trip' }).click();
   await expect(page.getByRole('heading', { name: fixture.trip.title })).toBeVisible();
-  await page.getByRole('navigation', { name: 'Itinerary days' }).getByRole('link', { name: /Arrival/ }).click();
+  await page.locator('.overview-day-card').filter({ hasText: 'Arrival' }).click();
+  await expect(page.getByRole('navigation', { name: 'Itinerary days' })).toBeVisible();
+  const dayShareButton = page.getByRole('button', { name: 'Share this day', exact: true });
+  await expect(dayShareButton).toHaveText('Share this day');
+  await expect(page.locator('.hero-link-share-button')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Export portable Trailbook file' })).toHaveCount(0);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async (data) => { window.dayLinkShare = data; } });
+  });
+  await dayShareButton.click();
+  await expect.poll(() => page.evaluate(() => window.dayLinkShare?.url)).toContain('/day/arrival-stable');
+  expect(await page.evaluate(() => window.dayLinkShare.files)).toBeUndefined();
   await expect(page.getByText('Preserve this user-authored note.')).toBeAttached();
 });
 
@@ -69,7 +129,7 @@ test('TA-TRAVEL-94-02 @pr @post-deploy uses Android file sharing and always reta
     Object.defineProperty(navigator, 'share', { configurable: true, value: async () => { throw new DOMException('cancelled', 'AbortError'); } });
   });
   const cancelledDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export & share file' }).click();
+  await page.getByRole('button', { name: 'Export portable Trailbook file' }).click();
   expect((await cancelledDownload).suggestedFilename()).toBe('Kyoto-Autumn-2026.trailbook');
 
   await page.evaluate(() => {
@@ -77,7 +137,7 @@ test('TA-TRAVEL-94-02 @pr @post-deploy uses Android file sharing and always reta
     Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
   });
   const unsupportedDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export & share file' }).click();
+  await page.getByRole('button', { name: 'Export portable Trailbook file' }).click();
   expect((await unsupportedDownload).suggestedFilename()).toBe('Kyoto-Autumn-2026.trailbook');
 
   await page.evaluate(() => navigator.serviceWorker.ready);
@@ -87,7 +147,7 @@ test('TA-TRAVEL-94-02 @pr @post-deploy uses Android file sharing and always reta
   await page.reload();
   await expect(page.getByRole('heading', { name: fixture.trip.title })).toBeVisible();
   const offlineDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export & share file' }).click();
+  await page.getByRole('button', { name: 'Export portable Trailbook file' }).click();
   expect((await offlineDownload).suggestedFilename()).toBe('Kyoto-Autumn-2026.trailbook');
   await context.setOffline(false);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
@@ -127,7 +187,9 @@ test('TA-TRAVEL-94-03 @pr excludes private local state, makes no request, and bl
   }, invalid);
   await context.route('**/data/itineraries/invalid-export/v1.json', (route) => route.abort());
   await page.goto('./#/trip/invalid-export/v/1');
-  await page.getByRole('button', { name: 'Export & share file' }).click();
-  await expect(page.getByRole('alert')).toContainText(/cannot be exported.*invalid.*\/trip\/localPath/i);
-  await expect(page.getByRole('button', { name: 'Export & share file' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Export portable Trailbook file' }).click();
+  const exportError = page.getByRole('alert');
+  await expect(exportError).toContainText(/cannot be exported.*invalid.*\/trip\/localPath/i);
+  await expect(exportError).toHaveAttribute('data-state', 'error');
+  await expect(page.getByRole('button', { name: 'Export portable Trailbook file' })).toBeEnabled();
 });

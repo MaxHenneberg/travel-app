@@ -9,8 +9,9 @@
     "lint": "eslint . --max-warnings 0",
     "build": "vite build && node scripts/create-pages-fallback.mjs && npm run check:bundles",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "npm run typecheck && npm run lint && npm run test:unit && npm run test:traceability && npm run test:integration",
+    "test": "npm run typecheck && npm run lint && npm run test:fixtures && npm run test:unit && npm run test:traceability && npm run test:integration",
     "test:unit": "node --test tests/unit/*.test.mjs && vitest run",
+    "test:fixtures": "node scripts/validate-fixtures.mjs",
     "test:integration": "playwright test",
     "test:traceability": "node scripts/validate-traceability.mjs",
     "test:traceability:jira": "node scripts/validate-traceability.mjs --jira",
@@ -30,6 +31,7 @@
     "workbox-strategies": "^7.3.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "1.62.1",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.46.1",

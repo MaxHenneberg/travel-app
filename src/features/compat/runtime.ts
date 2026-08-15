@@ -11,8 +11,11 @@ import { applyTheme, readStoredTheme, themes } from '../../lib/theme.js';
 import { createTrailbookExport, shareOrDownloadTrailbook } from '../../lib/trailbook-export.js';
 import { claimPendingImport, deletePendingImport, purgeExpiredImports, putPendingImport } from '../../lib/pending-import.js';
 import { duplicateItinerary, validateImportTransport, validateTrailbookImport } from '../../lib/trailbook-import.js';
+import { createKasumiParallax } from '../../lib/kasumi.js';
 
 let app;
+let disposeKasumi = () => {};
+let timelineResizeObserver;
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
 const attachmentStore = createAttachmentStore();
@@ -111,9 +114,9 @@ function attachmentPanel(scope, heading) {
   const records = state.attachments.get(key) ?? [];
   return `<section class="attachments" data-attachment-scope="${escapeHtml(key)}" aria-label="${escapeHtml(heading)}">
     <div class="attachment-heading"><div><span class="attachment-title">${escapeHtml(heading)}</span><span class="attachment-status">Local · offline</span></div>
-      <div class="attachment-picker-wrap"><button class="attachment-picker" type="button" data-attachment-trigger aria-label="Upload files to ${escapeHtml(heading)}" title="Upload files">${attachmentIcon('upload')}</button><input class="sr-only" type="file" multiple data-attachment-input data-trip-id="${escapeHtml(scope.tripId)}" data-scope-type="${escapeHtml(scope.type)}" data-owner-id="${escapeHtml(scope.ownerId)}"></div>
+      <div class="attachment-picker-wrap"><button class="attachment-picker" type="button" data-attachment-trigger aria-label="Upload files to ${escapeHtml(heading)}" title="Upload files">${attachmentIcon('upload')}</button><input class="sr-only" type="file" multiple data-attachment-input aria-label="Choose files for ${escapeHtml(heading)}" data-trip-id="${escapeHtml(scope.tripId)}" data-scope-type="${escapeHtml(scope.type)}" data-owner-id="${escapeHtml(scope.ownerId)}"></div>
     </div>
-    <p class="attachment-privacy sr-only">Documents stay in this browser profile and never sync or upload. They may contain personal information and are protected by your device—not by app-level encryption.</p>
+    <p class="attachment-privacy sr-only">Documents stay in this browser profile. They are not uploaded or app-encrypted.</p>
     ${records.length ? `<ul class="attachment-list">${records.map((item) => `<li class="attachment-item" data-attachment-id="${escapeHtml(item.id)}">
       <div class="attachment-copy"><strong class="attachment-name">${escapeHtml(item.name)}</strong><span class="attachment-label sr-only">${escapeHtml(item.label)}</span><span class="attachment-meta sr-only">${escapeHtml(item.kind === 'pdf' ? 'PDF' : item.kind === 'pass' ? 'Wallet pass' : item.type || 'File')} · ${formatBytes(item.size)} · ${escapeHtml(new Date(item.addedAt).toLocaleDateString())}</span></div>
       <div class="attachment-actions">
@@ -121,7 +124,7 @@ function attachmentPanel(scope, heading) {
         <button class="attachment-action" type="button" data-attachment-rename="${escapeHtml(item.id)}" aria-label="Edit label for ${escapeHtml(item.name)}" title="Edit label">${attachmentIcon('edit')}</button>
         <button class="attachment-action danger" type="button" data-attachment-remove="${escapeHtml(item.id)}" aria-label="Remove ${escapeHtml(item.name)}" title="Remove">${attachmentIcon('remove')}</button>
       </div>
-    </li>`).join('')}</ul>` : '<p class="attachment-empty">No local documents attached in this context.</p>'}
+    </li>`).join('')}</ul>` : '<p class="attachment-empty">No documents</p>'}
   </section>`;
 }
 
@@ -169,6 +172,7 @@ function renderActivity(activity) {
     <figcaption ${image.caption || image.credit || image.sourceUrl ? '' : 'hidden'}>${image.caption ? `<span data-image-caption>${escapeHtml(image.caption)}</span>` : '<span data-image-caption></span>'}${image.credit ? `<span data-image-credit>Photo: ${escapeHtml(image.credit)}</span>` : '<span data-image-credit></span>'}${image.sourceUrl ? `<a data-image-source href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noopener noreferrer">Image source</a>` : '<a data-image-source target="_blank" rel="noopener noreferrer" hidden>Image source</a>'}</figcaption>
   </figure>` : '';
   return `<article class="activity" data-activity-id="${escapeHtml(activity.id)}" data-testid="activity-item">
+    <span class="timeline-node" aria-hidden="true"></span>
     <div class="activity-time">${time ? `<time${activity.startsAt ? ` datetime="${escapeHtml(activity.startsAt)}"` : ''}>${escapeHtml(time)}</time>` : '<span class="unscheduled">Any time</span>'}</div>
     <div class="activity-card">
       <p class="activity-type">${escapeHtml(firstValue(activity.type, activity.category, 'Activity'))}</p>
@@ -178,27 +182,11 @@ function renderActivity(activity) {
         ${activity.duration ? `<span>${escapeHtml(activity.duration)}</span>` : ''}
         ${typeof activity.location === 'string' ? `<span>${escapeHtml(activity.location)}</span>` : activity.location?.name ? `<span>${escapeHtml(activity.location.name)}</span>` : ''}
       </div>
-      ${details.length ? `<details><summary>Practical details</summary><div class="details-body">${details.join('')}</div></details>` : ''}
-      ${mapUrl ? `<a class="button map-action" data-map-link href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener noreferrer">Open in Google Maps ↗</a>` : ''}
+      ${details.length ? `<details><summary aria-label="Practical details">Details</summary><div class="details-body">${details.join('')}</div></details>` : ''}
+      ${mapUrl ? `<a class="button map-action" data-map-link href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps">Map ↗</a>` : ''}
       ${attachmentPanel({ tripId: tripId(state.trip), type: 'stop', ownerId: activity.id }, 'Stop documents')}
     </div>
   </article>`;
-}
-
-function renderDayRoute(day) {
-  const stops = (day?.activities ?? []).flatMap((activity) => {
-    const location = activityLocation(activity);
-    if (!location) return [];
-    const label = typeof location === 'string' ? location : firstValue(location.name, location.address, activity.title);
-    const transport = activity.transport && (typeof activity.transport === 'string' ? activity.transport
-      : [activity.transport.mode, activity.transport.line].filter(Boolean).join(' · '));
-    return [{ title: activity.title, label, transport }];
-  });
-  if (!stops.length) return '';
-  return `<section id="day-route" class="day-route" aria-labelledby="day-route-title">
-    <div><p class="eyebrow">On this page</p><h3 id="day-route-title" tabindex="-1">Day route</h3><p>Stops are shown in itinerary order and remain available offline.</p></div>
-    <ol aria-label="Ordered day route">${stops.map((stop, index) => `<li><span class="route-marker" aria-hidden="true">${index + 1}</span><div><strong>${escapeHtml(stop.title)}</strong><span>${escapeHtml(stop.label)}</span>${stop.transport ? `<small>${escapeHtml(stop.transport)}</small>` : ''}</div></li>`).join('')}</ol>
-  </section>`;
 }
 
 function tripHash(trip, dayId = null) {
@@ -221,8 +209,8 @@ function tripCard(trip, { removable = true } = {}) {
       <div class="trip-card-meta"><span>${escapeHtml(dateRange(trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(trip)}</span></div>
     </div>
     <div class="trip-card-actions">
-      <a class="button primary" href="${escapeHtml(tripHash(trip))}">Open trip overview</a>
-      ${removable ? `<button class="button subtle" type="button" data-remove-trip="${escapeHtml(tripId(trip))}" data-remove-revision="${revision(trip)}">Remove saved trip</button>` : ''}
+      <a class="button primary" href="${escapeHtml(tripHash(trip))}" aria-label="Open trip overview">Open</a>
+      ${removable ? `<button class="button subtle" type="button" data-remove-trip="${escapeHtml(tripId(trip))}" data-remove-revision="${revision(trip)}" aria-label="Remove saved trip">Remove</button>` : ''}
     </div>
   </article>`;
 }
@@ -232,11 +220,28 @@ function schemaExportLink(className = 'button ghost') {
   return `<a class="${className}" data-schema-export href="${escapeHtml(url)}" download="trailbook-itinerary-schema-v1.json">Export JSON schema</a>`;
 }
 
+function kasumiMarkup() {
+  return `<div class="kasumi" data-kasumi-stage data-testid="kasumi-decoration" aria-hidden="true">
+    <svg class="kasumi-layer kasumi-layer-far" data-kasumi-layer="far" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" focusable="false">
+      <path d="M-100 86h240V62h180v32h242V68h206v28h250V64h260"/>
+      <path d="M-160 182h300v-22h228v30h268v-26h282v24h420"/>
+      <path d="M-80 430h260v-28h210v34h286v-26h240v30h360"/>
+      <path d="M-140 612h320v-20h250v28h274v-24h298v22h340"/>
+    </svg>
+    <svg class="kasumi-layer kasumi-layer-near" data-kasumi-layer="near" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" focusable="false">
+      <path d="M-120 270h270v-34h198v42h286v-32h210v38h252v-30h300"/>
+      <path d="M20 356h240v-24h268v32h204v-26h292v22h280"/>
+      <path d="M-180 520h300v-36h220v44h310v-34h230v40h300"/>
+      <path d="M40 666h250v-22h278v30h216v-24h300v20h260"/>
+    </svg>
+  </div>`;
+}
+
 function topbar() {
   return `<header class="topbar">
     <a class="brand" href="${escapeHtml(baseUrl.href)}" aria-label="All trips"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></a>
     <div class="topbar-actions">
-      <div id="network-status" class="network ${state.online ? '' : 'offline'}">${state.online ? 'Online · synced' : 'Offline · saved copy'}</div>
+      <div id="network-status" class="network ${state.online ? '' : 'offline'}" aria-label="${state.online ? 'Online' : 'Offline, saved copy available'}">${state.online ? 'Online' : 'Offline'}</div>
       <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="app-menu" aria-label="Open app menu"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></button>
     </div>
     <div class="menu-backdrop" id="menu-backdrop" aria-hidden="true" hidden></div>
@@ -253,14 +258,19 @@ function topbar() {
 
 function noticeMarkup() { return state.notice ? `<div class="notice" role="status">${escapeHtml(state.notice)}</div>` : ''; }
 
-function trailbookExportMarkup() {
-  return `<section class="trailbook-export" aria-labelledby="trailbook-export-title">
-    <div><p class="eyebrow">Private file export</p><h3 id="trailbook-export-title">Take this trip with you</h3>
-      <p>Creates one portable <strong>.trailbook</strong> itinerary on this device. It never uploads anything. Local documents, cached stop pictures, browser data, and device paths are not included.</p>
-      <p class="trailbook-export-separation">This file action is separate from <strong>Share this trip</strong>, which sends a published link.</p></div>
-    <button class="button primary" id="export-trailbook" type="button" aria-describedby="trailbook-export-title trailbook-export-status">Export &amp; share file</button>
-    <p class="trailbook-export-status" id="trailbook-export-status" role="status">You choose when to export. On supported Android devices, the system share sheet opens; otherwise the file downloads.</p>
-  </section>`;
+function tripLinkShareActionMarkup() {
+  return `<button class="hero-icon-action hero-link-share-button" id="share-trip" type="button" aria-label="Share this trip as a published link" title="Share this trip as a published link">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5m-7.6 6.9 7.6 4.5"/></svg>
+  </button>`;
+}
+
+function trailbookExportActionMarkup() {
+  return `<span class="hero-file-export">
+    <button class="hero-icon-action hero-export-button" id="export-trailbook" type="button" aria-label="Export portable Trailbook file" aria-describedby="trailbook-export-status" title="Export portable Trailbook file">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 15v4h14v-4"/></svg>
+    </button>
+    <span class="hero-export-status" id="trailbook-export-status" role="status" data-state="idle">Portable file export ready.</span>
+  </span>`;
 }
 
 function bottomNavigation() {
@@ -275,7 +285,7 @@ function bottomNavigation() {
 function importErrorMarkup() {
   if (!state.importError) return '';
   return `<section class="import-error" role="status" data-testid="itinerary-error">
-    <div><p class="eyebrow">Import needs attention</p><h2>JSON could not be imported</h2><p>Copy this repair request and send it to an LLM together with your original JSON.</p></div>
+    <div><p class="eyebrow">Import</p><h2>File needs repair</h2><p>Copy this request with your original JSON.</p></div>
     <textarea id="import-error-message" readonly aria-label="Copyable itinerary repair message">${escapeHtml(state.importError.prompt)}</textarea>
     <div class="import-error-actions"><button class="button primary" id="copy-import-error" type="button">Copy error for an LLM</button>${schemaExportLink('button subtle')}</div>
   </section>`;
@@ -284,7 +294,7 @@ function importErrorMarkup() {
 function countryHistoryMarkup() {
   const countries = countryHistory.getHistory();
   return `<section class="country-history" aria-labelledby="country-history-title">
-    <header><div><p class="eyebrow">Travel history</p><h2 id="country-history-title">Visited countries</h2></div><span>${countries.length} ${countries.length === 1 ? 'country' : 'countries'}</span></header>
+    <header><h2 id="country-history-title">Visited countries</h2><span>${countries.length} ${countries.length === 1 ? 'country' : 'countries'}</span></header>
     <form id="add-country" class="country-form">
       <label>Country code<input name="countryCode" required maxlength="2" autocapitalize="characters" placeholder="JP" aria-describedby="country-code-help"></label>
       <label>First visited<input name="firstVisited" type="date"></label>
@@ -295,8 +305,8 @@ function countryHistoryMarkup() {
     <div class="country-list">${countries.length ? countries.map((country) => `<form class="country-record" data-country-record="${country.countryCode}">
       <label><span>Country</span><input name="countryCode" required maxlength="2" value="${country.countryCode}" aria-label="Country code for ${escapeHtml(countryName(country.countryCode))}"></label>
       <div class="country-copy"><strong>${escapeHtml(countryName(country.countryCode))}</strong><small>${country.visits} ${country.visits === 1 ? 'visit' : 'visits'} · ${country.sources.join(' + ')}${country.firstVisited ? ` · ${country.firstVisited}${country.lastVisited !== country.firstVisited ? `–${country.lastVisited}` : ''}` : ''}</small></div>
-      <button class="button subtle" type="submit">Save correction</button><button class="button danger" type="button" data-remove-country="${country.countryCode}">Remove</button>
-    </form>`).join('') : '<p class="country-empty">No visited countries yet. Import an itinerary with country codes or add one here.</p>'}</div>
+      <button class="button subtle" type="submit" aria-label="Save correction">Save</button><button class="button danger" type="button" data-remove-country="${country.countryCode}">Remove</button>
+    </form>`).join('') : '<p class="country-empty">No countries yet. Import a trip or add one.</p>'}</div>
   </section>`;
 }
 
@@ -309,33 +319,60 @@ function routeStopMarkup(activity, index) {
 }
 
 function mapRouteMarkup() {
-  if (!state.trip) return `<section class="route-view empty-card" aria-labelledby="route-title"><p class="eyebrow">Map-Route</p><h2 id="route-title">Choose a trip first</h2><p>Open a trip from the Trip tab to see its ordered route here.</p><button class="button primary" type="button" data-bottom-section="trip">Go to trips</button></section>`;
+  if (!state.trip) return `<section class="route-view empty-card" aria-labelledby="route-title"><p class="eyebrow">Map-Route</p><h2 id="route-title" aria-label="Choose a trip first">Choose a trip</h2><button class="button primary" type="button" data-bottom-section="trip" aria-label="Go to trips">Trips</button></section>`;
   const days = tripDays(state.trip);
   const day = currentDay();
-  if (!day) return `<section class="route-view" aria-labelledby="route-title"><header><p class="eyebrow">${escapeHtml(tripTitle(state.trip))}</p><h2 id="route-title">Map-Route</h2><p>Select a day. Routes stay inside Trailbook and preserve itinerary order.</p></header><div class="route-day-list">${days.map((item, index) => {
+  if (!day) return `<section class="route-view" aria-labelledby="route-title"><header><p class="eyebrow">${escapeHtml(tripTitle(state.trip))}</p><h2 id="route-title" aria-label="Map-Route">Route</h2><p>Choose a day</p></header><div class="route-day-list">${days.map((item, index) => {
     const count = (item.activities ?? []).filter(activityLocation).length;
     return `<a href="${escapeHtml(tripHash(state.trip, item.id))}" data-route-day><span>Day ${index + 1}</span><strong>${escapeHtml(item.title || item.date)}</strong><small>${count} ${count === 1 ? 'stop' : 'stops'}</small></a>`;
   }).join('')}</div></section>`;
   const stops = (day.activities ?? []).filter(activityLocation);
-  return `<section class="route-view" aria-labelledby="route-title"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All trip days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} route</h2><p>Stops are shown in itinerary order and remain available offline.</p></header>${stops.length ? `<ol class="route-stop-list">${stops.map(routeStopMarkup).join('')}</ol>` : '<div class="empty-route"><strong>No mapped stops</strong><p>This day has no locations yet.</p></div>'}</section>`;
+  return `<section class="route-view" aria-labelledby="route-title"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} route</h2><p>Available offline</p></header>${stops.length ? `<ol class="route-stop-list" aria-label="Ordered map route">${stops.map(routeStopMarkup).join('')}</ol>` : '<div class="empty-route"><strong>No mapped stops</strong></div>'}</section>`;
+}
+
+function observeTimeline() {
+  timelineResizeObserver?.disconnect();
+  timelineResizeObserver = undefined;
+  const timeline = document.querySelector('.timeline');
+  const spine = timeline?.querySelector('.timeline-spine');
+  const nodes = [...(timeline?.querySelectorAll('.timeline-node') ?? [])];
+  if (!timeline || !spine || nodes.length < 2) {
+    if (spine) spine.hidden = true;
+    return;
+  }
+  const position = () => {
+    const timelineBox = timeline.getBoundingClientRect();
+    const firstBox = nodes[0].getBoundingClientRect();
+    const lastBox = nodes.at(-1).getBoundingClientRect();
+    const firstCenter = firstBox.top + (firstBox.height / 2) - timelineBox.top;
+    const lastCenter = lastBox.top + (lastBox.height / 2) - timelineBox.top;
+    timeline.style.setProperty('--timeline-spine-top', `${firstCenter}px`);
+    timeline.style.setProperty('--timeline-spine-height', `${Math.max(0, lastCenter - firstCenter)}px`);
+  };
+  position();
+  if ('ResizeObserver' in window) {
+    timelineResizeObserver = new ResizeObserver(position);
+    timelineResizeObserver.observe(timeline);
+  }
 }
 
 async function renderUtilitySection() {
   const history = state.section === 'history';
-  app.innerHTML = `<div class="app-shell utility-shell">${topbar()}<header class="utility-hero"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
+  app.innerHTML = `<div class="app-shell utility-shell">${kasumiMarkup()}${topbar()}<header class="utility-hero"><div class="utility-hero-content"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></div></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
   bindCommon();
 }
 
 async function renderCollection(savedTrips) {
   const trips = uniqueTrips(savedTrips);
   app.innerHTML = `<div class="app-shell">
+    ${kasumiMarkup()}
     ${topbar()}
     <header class="collection-hero">
-      <div><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
+      <div class="collection-hero-content"><h1 aria-label="Your trips">Trips</h1></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${shareTargetMarkup()}${importErrorMarkup()}
-      <div class="collection-heading"><div><p class="eyebrow">Saved and published</p><h2>Trip collection</h2></div><span>${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}</span></div>
+      <div class="collection-heading"><h2 aria-label="Trip collection">${trips.length} ${trips.length === 1 ? 'trip' : 'trips'}</h2></div>
       ${trips.length ? `<div class="trip-grid">${trips.map((trip) => tripCard(trip)).join('')}</div>` : `<section class="empty-card"><h2>No trips on this device</h2><p>${state.online ? 'Import an itinerary to get started.' : 'Connect once to download a published trip, or import an itinerary file already on this device.'}</p></section>`}
     </main>
     ${bottomNavigation()}${noticeMarkup()}
@@ -347,8 +384,8 @@ function dayPreview(day) {
   const activities = day.activities ?? [];
   return `<li><a class="overview-day-card" href="${escapeHtml(tripHash(state.trip, day.id))}">
     <div><time>${escapeHtml(day.date)}</time><h3>${escapeHtml(day.title || day.date)}</h3>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}</div>
-    ${activities.length ? `<ol class="activity-preview" aria-label="Activities">${activities.slice(0, 3).map((activity) => `<li>${escapeHtml(activityTime(activity) || 'Any time')} · ${escapeHtml(activity.title)}</li>`).join('')}</ol>` : '<p class="day-empty">No activities planned for this day.</p>'}
-    <span class="day-card-action">View day →</span>
+    ${activities.length ? `<ol class="activity-preview" aria-label="Activities">${activities.slice(0, 3).map((activity) => `<li>${escapeHtml(activityTime(activity) || 'Any time')} · ${escapeHtml(activity.title)}</li>`).join('')}</ol>` : '<p class="day-empty" aria-label="No activities planned for this day">No plans</p>'}
+    <span class="day-card-action" aria-hidden="true">→</span>
   </a></li>`;
 }
 
@@ -365,32 +402,30 @@ async function renderTrip(savedTrips) {
   const days = tripDays(state.trip);
   const day = currentDay();
   app.innerHTML = `<div class="app-shell">
+    ${kasumiMarkup()}
     ${topbar()}
     <header class="hero"><div class="hero-content">
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
-      <div class="hero-actions"><button class="primary" id="share-trip" type="button">${day ? 'Share this day' : 'Share this trip'}</button></div>
+      <div class="hero-actions">${day ? '<button class="primary" id="share-trip" type="button">Share this day</button>' : `${tripLinkShareActionMarkup()}${trailbookExportActionMarkup()}`}</div>
     </div></header>
-    <main class="layout" data-testid="primary-content">
-      ${navigation(days, day)}
+    <main class="layout ${day ? '' : 'overview-layout'}" data-testid="primary-content">
+      ${day ? navigation(days, day) : ''}
       <section class="content" aria-live="polite">
         ${importErrorMarkup()}
         ${state.attachmentError ? `<div class="import-error attachment-error" role="alert">${escapeHtml(state.attachmentError)}</div>` : ''}
-        <p class="attachment-usage" aria-label="Local attachment storage usage">Local documents: ${formatBytes(state.attachmentUsage.bytes)} of ${formatBytes(state.attachmentUsage.limitBytes)} used (${state.attachmentUsage.count} files). Per-file limit: ${formatBytes(attachmentStore.limits.perFileBytes)}.</p>
+        <p class="attachment-usage" aria-label="Local attachment storage usage. ${formatBytes(state.attachmentUsage.bytes)} of ${formatBytes(state.attachmentUsage.limitBytes)} used. ${state.attachmentUsage.count} files. Per-file limit ${formatBytes(attachmentStore.limits.perFileBytes)}.">Documents · ${state.attachmentUsage.count} · ${formatBytes(state.attachmentUsage.bytes)} / ${formatBytes(state.attachmentUsage.limitBytes)}</p>
         ${day ? `<article class="day-panel">
           <header class="day-heading"><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">← Trip overview</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 data-testid="selected-day-title">${escapeHtml(day.title || day.date)}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
-            ${renderDayRoute(day) ? '<div class="day-toolbar"><button class="button subtle" data-view-day-route type="button">View day route ↓</button></div>' : ''}
           </header>
           ${attachmentPanel({ tripId: tripId(state.trip), type: 'day', ownerId: day.id }, 'Day documents')}
-          ${(day.activities ?? []).length ? `<div class="timeline">${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No fixed plans yet</strong>This day is open. Add an activity in the itinerary file when you are ready.</div>'}
-          ${renderDayRoute(day)}
+          ${(day.activities ?? []).length ? `<div class="timeline"><span class="timeline-spine" aria-hidden="true"></span>${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No plans yet</strong></div>'}
         </article>` : `<article class="trip-overview" data-testid="trip-overview">
-          <header><p class="eyebrow">At a glance</p><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day to see its complete itinerary.</p>'}</header>
+          <header><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day</p>'}</header>
           ${attachmentPanel({ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }, 'Trip documents')}
-          <button class="button danger clear-trip-attachments" type="button" data-clear-trip-attachments>Clear all local documents for this trip</button>
-          ${trailbookExportMarkup()}
-          ${days.length ? `<ol class="overview-day-list">${days.map(dayPreview).join('')}</ol>` : '<section class="empty-card" data-testid="empty-itinerary"><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></section>'}
+          <button class="button danger clear-trip-attachments" type="button" data-clear-trip-attachments aria-label="Clear all local documents for this trip">Clear documents</button>
+          ${days.length ? `<ol class="overview-day-list">${days.map(dayPreview).join('')}</ol>` : '<section class="empty-card" data-testid="empty-itinerary"><h3>No days yet</h3></section>'}
         </article>`}
       </section>
     </main>
@@ -398,13 +433,14 @@ async function renderTrip(savedTrips) {
   </div>`;
   bindCommon();
   hydrateStopPictures();
+  observeTimeline();
 }
 
 async function render() {
   const savedTrips = await store.listTrips();
   if (state.trip) await refreshAttachmentState();
   if (state.error) {
-    app.innerHTML = `<div class="app-shell">${topbar()}<main class="single-column"><section class="error-card"><p class="eyebrow">Unable to open trip</p><h1>${escapeHtml(state.error.title)}</h1><p>${escapeHtml(state.error.message)}</p><a class="button primary" href="${escapeHtml(baseUrl.href)}">Back to all trips</a>${savedTrips.length ? `<div class="error-library"><h2>Trips on this device</h2>${savedTrips.map((trip) => tripCard(trip)).join('')}</div>` : ''}</section></main>${noticeMarkup()}</div>`;
+    app.innerHTML = `<div class="app-shell">${kasumiMarkup()}${topbar()}<main class="single-column"><section class="error-card"><p class="eyebrow">Trip unavailable</p><h1>${escapeHtml(state.error.title)}</h1><p>${escapeHtml(state.error.message)}</p><a class="button primary" href="${escapeHtml(baseUrl.href)}" aria-label="Back to all trips">All trips</a>${savedTrips.length ? `<div class="error-library"><h2>Saved trips</h2>${savedTrips.map((trip) => tripCard(trip)).join('')}</div>` : ''}</section></main>${noticeMarkup()}</div>`;
     bindCommon();
     return;
   }
@@ -544,15 +580,25 @@ async function finishSharedImport() {
 }
 
 async function shareCurrent() {
+  const button = document.querySelector('#share-trip');
   const hash = tripHash(state.trip, state.dayId);
   const url = new URL(hash, window.location.href.split('#')[0]).href;
   const data = { title: tripTitle(state.trip), text: `Open ${tripTitle(state.trip)} in Trailbook`, url };
+  if (button) {
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+  }
   try {
     if (navigator.share) { await navigator.share(data); return; }
     await navigator.clipboard.writeText(url);
     showNotice('Link copied to clipboard.');
   } catch (error) {
     if (error?.name !== 'AbortError') showNotice('Could not share automatically. Copy the address from your browser.');
+  } finally {
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
   }
 }
 
@@ -563,16 +609,19 @@ async function exportCurrentTrip() {
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
   status.setAttribute('role', 'status');
-  status.textContent = 'Validating and preparing your private trip fileâ€¦';
+  status.dataset.state = 'busy';
+  status.textContent = 'Preparing portable fileâ€¦';
   try {
     const { file } = createTrailbookExport(state.trip);
     const result = await shareOrDownloadTrailbook(file);
     status.textContent = result === 'shared'
       ? 'Trailbook file shared. Nothing was uploaded by Trailbook.'
       : 'Trailbook file downloaded. Nothing was uploaded.';
+    status.dataset.state = 'success';
   } catch (error) {
     const path = error?.path ? ` at ${error.path}` : '';
     status.setAttribute('role', 'alert');
+    status.dataset.state = 'error';
     status.textContent = `This trip cannot be exported because its itinerary is invalid${path}. ${error?.message || 'Fix the itinerary and try again.'}`;
   } finally {
     if (button.isConnected) {
@@ -636,6 +685,8 @@ async function addAttachments(input) {
 }
 
 function bindCommon() {
+  disposeKasumi();
+  disposeKasumi = createKasumiParallax({ root: document, viewport: window, navigatorObject: navigator });
   document.querySelectorAll('[data-bottom-section]').forEach((button) => button.addEventListener('click', async () => {
     state.section = button.dataset.bottomSection;
     window.dispatchEvent(new CustomEvent('trailbook:feature-open', { detail: state.section }));
@@ -662,6 +713,12 @@ function bindCommon() {
   const menuToggle = document.querySelector('#menu-toggle');
   const backdrop = document.querySelector('#menu-backdrop');
   let closeTimer;
+  let menuPageScroll = { left: 0, top: 0 };
+  const restoreMenuPageScroll = () => window.scrollTo({
+    left: menuPageScroll.left,
+    top: menuPageScroll.top,
+    behavior: 'instant',
+  });
   const closeMenu = ({ restoreFocus = false } = {}) => {
     if (!menu || !menuToggle || menu.hidden) return;
     window.clearTimeout(closeTimer);
@@ -671,7 +728,8 @@ function bindCommon() {
     document.body.classList.remove('menu-open');
     menuToggle.setAttribute('aria-expanded', 'false');
     menuToggle.setAttribute('aria-label', 'Open app menu');
-    if (restoreFocus) menuToggle.focus();
+    if (restoreFocus) menuToggle.focus({ preventScroll: true });
+    restoreMenuPageScroll();
     closeTimer = window.setTimeout(() => {
       if (!menu.classList.contains('open')) {
         menu.hidden = true;
@@ -682,17 +740,20 @@ function bindCommon() {
   menuToggle?.addEventListener('click', () => {
     const opening = menu.hidden;
     if (!opening) { closeMenu({ restoreFocus: true }); return; }
+    menuPageScroll = { left: window.scrollX, top: window.scrollY };
     window.clearTimeout(closeTimer);
     menu.hidden = false;
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('menu-open');
     menuToggle.setAttribute('aria-expanded', 'true');
     menuToggle.setAttribute('aria-label', 'Close app menu');
+    restoreMenuPageScroll();
     requestAnimationFrame(() => {
       menu.classList.add('open');
       backdrop?.classList.add('open');
       menu.setAttribute('aria-hidden', 'false');
-      menu.querySelector('select, a, button, label')?.focus();
+      menu.querySelector('select, a, button, label')?.focus({ preventScroll: true });
+      restoreMenuPageScroll();
     });
   });
   document.onkeydown = (event) => {
@@ -842,10 +903,6 @@ async function hydrateStopPictures() {
     }, { rootMargin: '300px 0px' });
     observer.observe(figure);
   }));
-  document.querySelector('[data-view-day-route]')?.addEventListener('click', () => {
-    document.querySelector('#day-route')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    document.querySelector('#day-route-title')?.focus({ preventScroll: true });
-  });
 }
 
 async function loadPublished(target) {
@@ -901,7 +958,9 @@ async function loadRoute() {
     state.view = 'trip'; state.trip = null; state.dayId = null;
     state.error = {
       title: state.online ? 'Itinerary unavailable' : 'Connect once to download this trip',
-      message: state.online ? networkError?.message || 'Check the link and try again.' : 'This itinerary is not saved on this device yet. Reopen this link after one successful online visit.',
+      message: state.online
+        ? (/Unexpected token|not valid JSON/i.test(networkError?.message ?? '') ? 'The itinerary response was invalid.' : networkError?.message || 'Check the link and try again.')
+        : 'This itinerary is not saved on this device yet. Reopen this link after one successful online visit.',
     };
     await render(); return;
   }
@@ -931,6 +990,7 @@ export function initializeLegacyApp(root) {
     return undefined;
   });
   return () => {
+    disposeKasumi();
     window.removeEventListener('hashchange', onHashChange);
     window.removeEventListener('online', onOnline);
     window.removeEventListener('offline', onOffline);

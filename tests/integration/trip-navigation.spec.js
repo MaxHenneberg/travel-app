@@ -46,7 +46,7 @@ test('TA-TRAVEL-6-03 @pr renders optional and empty day content without inventin
   let payload = { schemaVersion: 1, id: 'weekend-lisbon', revision: 1, title: 'Minimal trip', days: [{ id: 'minimal-day', date: '2026-12-01', activities: [] }] };
   await page.route('**/data/itineraries/weekend-lisbon/v1.json', (route) => route.fulfill({ json: payload }));
   await page.goto('./#/trip/weekend-lisbon/v/1');
-  await expect(page.getByText('No activities planned for this day.')).toBeVisible();
+  await expect(page.getByText('No plans', { exact: true })).toBeVisible();
   await expect(page.getByText(/destination|location/i)).toHaveCount(0);
   await page.getByTestId('trip-overview').getByRole('link', { name: /2026-12-01/ }).click();
   await expect(page.getByTestId('empty-day')).toBeVisible();
