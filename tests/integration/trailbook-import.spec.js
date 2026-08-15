@@ -127,10 +127,14 @@ test('TA-TRAVEL-95-02 @pr validates, confirms, and resolves cancel, replace, and
 
 test('TA-TRAVEL-95-03 @pr @post-deploy receives and confirms offline under the repository base path', async ({ page, context }) => {
   await ensureControlled(page);
+  const deploymentBasePath = await page.evaluate(() => new URL('.', document.baseURI).pathname);
+  const manifest = await page.evaluate(async () => (await fetch(new URL('manifest.webmanifest', document.baseURI))).json());
+  expect(manifest.share_target.action).toBe('./share-target');
+  expect(new URL(manifest.share_target.action, page.url()).pathname).toBe(`${deploymentBasePath}share-target`);
   await context.setOffline(true);
   await postShare(page, [{ name: 'offline.trailbook', type: MIME, text: JSON.stringify(fixture({ id: 'offline-shared-trip', title: 'Offline shared trip' })) }], { manualRedirect: true });
   await expect(page.getByTestId('share-import-preview')).toBeVisible();
-  expect(new URL(page.url()).pathname).toBe('/travel-app/');
+  expect(new URL(page.url()).pathname).toBe(deploymentBasePath);
   await page.getByRole('button', { name: 'Import and open trip' }).click();
   await expect(page.getByRole('heading', { name: 'Offline shared trip' })).toBeVisible();
   expect(new URL(page.url()).hash).toContain('/trip/offline-shared-trip/v/1');
