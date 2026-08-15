@@ -181,11 +181,15 @@ for (const viewport of [
 
 test('day route UI is absent while Map-Route remains ordered and offline navigable', async ({ page, context }) => {
   await page.goto('./#/trip/weekend-lisbon/v/1/day/river-day');
+  await expect(page.getByTestId('selected-day-title')).toHaveText('Belém & the river');
+  await expect(page.locator('.timeline .activity')).toHaveCount(3);
+  const mapRoute = page.getByRole('button', { name: 'Map-Route' });
+  await expect(mapRoute).toBeVisible();
   await expect(page.locator('[data-view-day-route], #day-route')).toHaveCount(0);
   await expect(page.getByText('Day route', { exact: true })).toHaveCount(0);
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
-  await page.getByRole('button', { name: 'Map-Route' }).click();
+  await mapRoute.click();
   const route = page.getByRole('list', { name: 'Ordered map route' });
   await expect(route.getByRole('listitem')).toHaveCount(3);
   await expect(route.getByRole('listitem')).toHaveText([
