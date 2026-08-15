@@ -16,32 +16,64 @@ async function switchTheme(page, theme, expectedScrollTop) {
 }
 
 test('TA-TRAVEL-112-01 @pr @post-deploy renders two theme-aware Kasumi depths with bounded scroll parallax', async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'hardwareConcurrency', { configurable: true, value: 2 });
+  });
   if (testInfo.project.name === 'chromium') await page.setViewportSize({ width: 1265, height: 900 });
   await openTrip(page);
   const header = page.locator('[data-kasumi-header]');
   const title = page.getByTestId('trip-title');
   const initial = await header.evaluate((node) => ({
     height: node.getBoundingClientRect().height,
+    width: node.getBoundingClientRect().width,
+    layerWidth: node.querySelector('[data-kasumi-layer="far"]').getBoundingClientRect().width,
     far: getComputedStyle(node.querySelector('[data-kasumi-layer="far"]')).stroke,
     near: getComputedStyle(node.querySelector('[data-kasumi-layer="near"]')).stroke,
+    farStrokeWidth: Number.parseFloat(getComputedStyle(node.querySelector('[data-kasumi-layer="far"]')).strokeWidth),
+    nearStrokeWidth: Number.parseFloat(getComputedStyle(node.querySelector('[data-kasumi-layer="near"]')).strokeWidth),
+    scale: (() => {
+      const matrix = node.querySelector('[data-kasumi-layer="far"]').getScreenCTM();
+      return { x: Math.hypot(matrix.a, matrix.b), y: Math.hypot(matrix.c, matrix.d) };
+    })(),
   }));
   await expect(header).toHaveAttribute('data-kasumi-mode', 'parallax');
   await expect(header).toHaveAttribute('data-kasumi-active', 'true');
   await expect(header.locator('[data-kasumi-layer]')).toHaveCount(2);
+  await expect(header.locator('[data-kasumi-layer]').first()).toHaveAttribute('preserveAspectRatio', 'xMidYMid slice');
   await expect(title).toBeVisible();
+  expect(initial.layerWidth).toBeGreaterThanOrEqual(initial.width * 1.05);
+  expect(Math.abs(initial.scale.x - initial.scale.y)).toBeLessThan(.02);
 
-  await page.evaluate(async () => {
-    window.scrollTo({ top: 160, behavior: 'instant' });
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  });
+  if (testInfo.project.name === 'chromium') {
+    await page.setViewportSize({ width: 1920, height: 900 });
+    const wide = await header.evaluate((node) => ({
+      width: node.getBoundingClientRect().width,
+      layerWidth: node.querySelector('[data-kasumi-layer="far"]').getBoundingClientRect().width,
+      farStrokeWidth: Number.parseFloat(getComputedStyle(node.querySelector('[data-kasumi-layer="far"]')).strokeWidth),
+      nearStrokeWidth: Number.parseFloat(getComputedStyle(node.querySelector('[data-kasumi-layer="near"]')).strokeWidth),
+    }));
+    expect(wide.width).toBeGreaterThan(initial.width * 1.45);
+    expect(wide.layerWidth).toBeGreaterThan(initial.layerWidth * 1.45);
+    expect(wide.farStrokeWidth).toBeGreaterThan(initial.farStrokeWidth);
+    expect(wide.nearStrokeWidth).toBeGreaterThan(initial.nearStrokeWidth);
+    await page.setViewportSize({ width: 1265, height: 900 });
+  }
+
+  await page.mouse.wheel(0, 160);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(140);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const shifted = await header.evaluate((node) => ({
     height: node.getBoundingClientRect().height,
     far: node.style.getPropertyValue('--kasumi-far-shift'),
     near: node.style.getPropertyValue('--kasumi-near-shift'),
+    farTransform: new DOMMatrixReadOnly(getComputedStyle(node.querySelector('[data-kasumi-layer="far"]')).transform).m42,
+    nearTransform: new DOMMatrixReadOnly(getComputedStyle(node.querySelector('[data-kasumi-layer="near"]')).transform).m42,
   }));
   expect(shifted.height).toBe(initial.height);
-  expect(Number.parseFloat(shifted.far)).toBeGreaterThan(0);
-  expect(Number.parseFloat(shifted.near)).toBeGreaterThan(Number.parseFloat(shifted.far));
+  expect(Number.parseFloat(shifted.far)).toBeGreaterThanOrEqual(4);
+  expect(Number.parseFloat(shifted.near)).toBeGreaterThanOrEqual(12);
+  expect(shifted.farTransform).toBeGreaterThanOrEqual(4);
+  expect(shifted.nearTransform - shifted.farTransform).toBeGreaterThanOrEqual(7);
 
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await page.mouse.wheel(0, 1081);

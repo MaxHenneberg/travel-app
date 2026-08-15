@@ -15,8 +15,7 @@ export function resolveKasumiMode({
 } = {}) {
   if (reducedMotion) return KASUMI_MODE.REDUCED;
   const lowCapability = saveData
-    || (Number.isFinite(deviceMemory) && deviceMemory <= 2)
-    || (Number.isFinite(hardwareConcurrency) && hardwareConcurrency <= 2);
+    || (Number.isFinite(deviceMemory) && deviceMemory <= 2);
   if (lowCapability || !supportsTransform || !supportsAnimationFrame || !supportsIntersectionObserver) {
     return KASUMI_MODE.STATIC;
   }
@@ -59,8 +58,8 @@ export function createKasumiParallax({
     for (const header of visibleHeaders) {
       const bounds = header.getBoundingClientRect();
       const progress = clamp(-bounds.top, 0, bounds.height);
-      header.style.setProperty('--kasumi-far-shift', `${(progress * 0.035).toFixed(2)}px`);
-      header.style.setProperty('--kasumi-near-shift', `${(progress * 0.085).toFixed(2)}px`);
+      header.style.setProperty('--kasumi-far-shift', `${(progress * 0.06).toFixed(2)}px`);
+      header.style.setProperty('--kasumi-near-shift', `${(progress * 0.16).toFixed(2)}px`);
     }
   };
   const onScroll = () => {

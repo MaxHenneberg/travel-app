@@ -8,7 +8,7 @@ test('selects parallax only for capable motion-enabled clients', () => {
   assert.equal(resolveKasumiMode({ reducedMotion: true }), KASUMI_MODE.REDUCED);
   assert.equal(resolveKasumiMode({ saveData: true }), KASUMI_MODE.STATIC);
   assert.equal(resolveKasumiMode({ deviceMemory: 2 }), KASUMI_MODE.STATIC);
-  assert.equal(resolveKasumiMode({ hardwareConcurrency: 2 }), KASUMI_MODE.STATIC);
+  assert.equal(resolveKasumiMode({ hardwareConcurrency: 2 }), KASUMI_MODE.PARALLAX);
   assert.equal(resolveKasumiMode({ supportsIntersectionObserver: false }), KASUMI_MODE.STATIC);
 });
 
@@ -68,8 +68,8 @@ test('observes visibility and coalesces passive scroll work into one animation f
   scrollHandler();
   assert.equal(frames.length, 1);
   frames[0]();
-  assert.equal(header.style.getPropertyValue('--kasumi-far-shift'), '3.50px');
-  assert.equal(header.style.getPropertyValue('--kasumi-near-shift'), '8.50px');
+  assert.equal(header.style.getPropertyValue('--kasumi-far-shift'), '6.00px');
+  assert.equal(header.style.getPropertyValue('--kasumi-near-shift'), '16.00px');
   observerCallback([{ target: header, isIntersecting: false }]);
   assert.equal(header.dataset.kasumiActive, 'false');
   assert.equal(scrollHandler, undefined);

@@ -220,11 +220,11 @@ function schemaExportLink(className = 'button ghost') {
 
 function kasumiMarkup() {
   return `<div class="kasumi" data-testid="kasumi-decoration" aria-hidden="true">
-    <svg class="kasumi-layer kasumi-layer-far" data-kasumi-layer="far" viewBox="0 0 1200 360" preserveAspectRatio="none" focusable="false">
+    <svg class="kasumi-layer kasumi-layer-far" data-kasumi-layer="far" viewBox="0 0 1200 360" preserveAspectRatio="xMidYMid slice" focusable="false">
       <path d="M-80 92h220V70h174v30h226V76h190v24h230V72h320"/>
       <path d="M-120 132h282v-18h210v24h244v-20h250v18h400"/>
     </svg>
-    <svg class="kasumi-layer kasumi-layer-near" data-kasumi-layer="near" viewBox="0 0 1200 360" preserveAspectRatio="none" focusable="false">
+    <svg class="kasumi-layer kasumi-layer-near" data-kasumi-layer="near" viewBox="0 0 1200 360" preserveAspectRatio="xMidYMid slice" focusable="false">
       <path d="M-100 250h250v-30h185v38h270v-28h196v34h235v-26h270"/>
       <path d="M40 300h225v-20h250v28h190v-22h270v18h260"/>
     </svg>

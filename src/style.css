@@ -128,10 +128,10 @@ body.menu-open { overflow: hidden; }
 .hero, .collection-hero, .utility-hero { position: relative; overflow: hidden; isolation: isolate; }
 .hero-content, .collection-hero-content, .utility-hero-content { position: relative; z-index: 2; }
 .kasumi { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; contain: strict; }
-.kasumi-layer { position: absolute; inset: -4% -2%; width: 104%; height: 108%; overflow: visible; fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; will-change: auto; }
+.kasumi-layer { position: absolute; inset: -6% -3%; width: 106%; height: 112%; overflow: visible; fill: none; stroke-linecap: round; stroke-linejoin: round; will-change: auto; }
 .kasumi-layer path { vector-effect: non-scaling-stroke; }
-.kasumi-layer-far { stroke: var(--kasumi-far); stroke-width: 10; opacity: .72; transform: translate3d(0, var(--kasumi-far-shift, 0), 0); }
-.kasumi-layer-near { stroke: var(--kasumi-near); stroke-width: 14; opacity: .68; transform: translate3d(0, var(--kasumi-near-shift, 0), 0); }
+.kasumi-layer-far { stroke: var(--kasumi-far); stroke-width: clamp(7px, .5vw, 11px); opacity: .72; transform: translate3d(0, var(--kasumi-far-shift, 0), 0); }
+.kasumi-layer-near { stroke: var(--kasumi-near); stroke-width: clamp(9px, .7vw, 15px); opacity: .68; transform: translate3d(0, var(--kasumi-near-shift, 0), 0); }
 :root[data-theme="neon-japan"] .kasumi-layer { filter: drop-shadow(0 0 7px var(--kasumi-glow)); }
 [data-kasumi-mode="parallax"] .kasumi-layer { will-change: transform; }
 [data-kasumi-mode="static-fallback"] .kasumi-layer, [data-kasumi-mode="reduced-motion"] .kasumi-layer { transform: none; }
