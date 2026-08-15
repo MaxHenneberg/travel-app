@@ -8,8 +8,10 @@ import { countryName, createCountryHistoryStore } from '../../lib/country-histor
 import { createAttachmentStore } from '../../lib/attachment-store.js';
 import { imageIsCached, resolveStopImage, validStopImages } from '../../lib/stop-images.js';
 import { applyTheme, readStoredTheme, themes } from '../../lib/theme.js';
+import { createKasumiParallax } from '../../lib/kasumi.js';
 
 let app;
+let disposeKasumi = () => {};
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
 const attachmentStore = createAttachmentStore();
@@ -216,6 +218,23 @@ function schemaExportLink(className = 'button ghost') {
   return `<a class="${className}" data-schema-export href="${escapeHtml(url)}" download="trailbook-itinerary-schema-v1.json">Export JSON schema</a>`;
 }
 
+function kasumiMarkup() {
+  return `<div class="kasumi" data-kasumi-stage data-testid="kasumi-decoration" aria-hidden="true">
+    <svg class="kasumi-layer kasumi-layer-far" data-kasumi-layer="far" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" focusable="false">
+      <path d="M-100 86h240V62h180v32h242V68h206v28h250V64h260"/>
+      <path d="M-160 182h300v-22h228v30h268v-26h282v24h420"/>
+      <path d="M-80 430h260v-28h210v34h286v-26h240v30h360"/>
+      <path d="M-140 612h320v-20h250v28h274v-24h298v22h340"/>
+    </svg>
+    <svg class="kasumi-layer kasumi-layer-near" data-kasumi-layer="near" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" focusable="false">
+      <path d="M-120 270h270v-34h198v42h286v-32h210v38h252v-30h300"/>
+      <path d="M20 356h240v-24h268v32h204v-26h292v22h280"/>
+      <path d="M-180 520h300v-36h220v44h310v-34h230v40h300"/>
+      <path d="M40 666h250v-22h278v30h216v-24h300v20h260"/>
+    </svg>
+  </div>`;
+}
+
 function topbar() {
   return `<header class="topbar">
     <a class="brand" href="${escapeHtml(baseUrl.href)}" aria-label="All trips"><img src="${escapeHtml(new URL('icons/travel-192.png', baseUrl).href)}" alt=""><span>Trailbook</span></a>
@@ -296,16 +315,17 @@ function mapRouteMarkup() {
 
 async function renderUtilitySection() {
   const history = state.section === 'history';
-  app.innerHTML = `<div class="app-shell utility-shell">${topbar()}<header class="utility-hero"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
+  app.innerHTML = `<div class="app-shell utility-shell">${kasumiMarkup()}${topbar()}<header class="utility-hero"><div class="utility-hero-content"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></div></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
   bindCommon();
 }
 
 async function renderCollection(savedTrips) {
   const trips = uniqueTrips(savedTrips);
   app.innerHTML = `<div class="app-shell">
+    ${kasumiMarkup()}
     ${topbar()}
     <header class="collection-hero">
-      <div><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
+      <div class="collection-hero-content"><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${shareTargetMarkup()}${importErrorMarkup()}
@@ -339,6 +359,7 @@ async function renderTrip(savedTrips) {
   const days = tripDays(state.trip);
   const day = currentDay();
   app.innerHTML = `<div class="app-shell">
+    ${kasumiMarkup()}
     ${topbar()}
     <header class="hero"><div class="hero-content">
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
@@ -377,7 +398,7 @@ async function render() {
   const savedTrips = await store.listTrips();
   if (state.trip) await refreshAttachmentState();
   if (state.error) {
-    app.innerHTML = `<div class="app-shell">${topbar()}<main class="single-column"><section class="error-card"><p class="eyebrow">Unable to open trip</p><h1>${escapeHtml(state.error.title)}</h1><p>${escapeHtml(state.error.message)}</p><a class="button primary" href="${escapeHtml(baseUrl.href)}">Back to all trips</a>${savedTrips.length ? `<div class="error-library"><h2>Trips on this device</h2>${savedTrips.map((trip) => tripCard(trip)).join('')}</div>` : ''}</section></main>${noticeMarkup()}</div>`;
+    app.innerHTML = `<div class="app-shell">${kasumiMarkup()}${topbar()}<main class="single-column"><section class="error-card"><p class="eyebrow">Unable to open trip</p><h1>${escapeHtml(state.error.title)}</h1><p>${escapeHtml(state.error.message)}</p><a class="button primary" href="${escapeHtml(baseUrl.href)}">Back to all trips</a>${savedTrips.length ? `<div class="error-library"><h2>Trips on this device</h2>${savedTrips.map((trip) => tripCard(trip)).join('')}</div>` : ''}</section></main>${noticeMarkup()}</div>`;
     bindCommon();
     return;
   }
@@ -487,6 +508,8 @@ async function addAttachments(input) {
 }
 
 function bindCommon() {
+  disposeKasumi();
+  disposeKasumi = createKasumiParallax({ root: document, viewport: window, navigatorObject: navigator });
   document.querySelectorAll('[data-bottom-section]').forEach((button) => button.addEventListener('click', async () => {
     state.section = button.dataset.bottomSection;
     window.dispatchEvent(new CustomEvent('trailbook:feature-open', { detail: state.section }));
@@ -513,6 +536,12 @@ function bindCommon() {
   const menuToggle = document.querySelector('#menu-toggle');
   const backdrop = document.querySelector('#menu-backdrop');
   let closeTimer;
+  let menuPageScroll = { left: 0, top: 0 };
+  const restoreMenuPageScroll = () => window.scrollTo({
+    left: menuPageScroll.left,
+    top: menuPageScroll.top,
+    behavior: 'instant',
+  });
   const closeMenu = ({ restoreFocus = false } = {}) => {
     if (!menu || !menuToggle || menu.hidden) return;
     window.clearTimeout(closeTimer);
@@ -522,7 +551,8 @@ function bindCommon() {
     document.body.classList.remove('menu-open');
     menuToggle.setAttribute('aria-expanded', 'false');
     menuToggle.setAttribute('aria-label', 'Open app menu');
-    if (restoreFocus) menuToggle.focus();
+    if (restoreFocus) menuToggle.focus({ preventScroll: true });
+    restoreMenuPageScroll();
     closeTimer = window.setTimeout(() => {
       if (!menu.classList.contains('open')) {
         menu.hidden = true;
@@ -533,17 +563,20 @@ function bindCommon() {
   menuToggle?.addEventListener('click', () => {
     const opening = menu.hidden;
     if (!opening) { closeMenu({ restoreFocus: true }); return; }
+    menuPageScroll = { left: window.scrollX, top: window.scrollY };
     window.clearTimeout(closeTimer);
     menu.hidden = false;
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('menu-open');
     menuToggle.setAttribute('aria-expanded', 'true');
     menuToggle.setAttribute('aria-label', 'Close app menu');
+    restoreMenuPageScroll();
     requestAnimationFrame(() => {
       menu.classList.add('open');
       backdrop?.classList.add('open');
       menu.setAttribute('aria-hidden', 'false');
-      menu.querySelector('select, a, button, label')?.focus();
+      menu.querySelector('select, a, button, label')?.focus({ preventScroll: true });
+      restoreMenuPageScroll();
     });
   });
   document.onkeydown = (event) => {
@@ -784,6 +817,7 @@ export function initializeLegacyApp(root) {
   window.addEventListener('beforeinstallprompt', onInstallPrompt);
   loadRoute();
   return () => {
+    disposeKasumi();
     window.removeEventListener('hashchange', onHashChange);
     window.removeEventListener('online', onOnline);
     window.removeEventListener('offline', onOffline);
