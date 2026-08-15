@@ -53,3 +53,5 @@ Set **Settings → Pages → Source** to **GitHub Actions**. The Pages workflow 
 Jira validation and execution comments are enabled when `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` repository secrets exist. Traceability lives in `test-cases.json`; stable IDs must occur exactly once in the Playwright titles. CI optionally confirms that each mapped Jira task exists, has the `test-case` label, and relates to its Story.
 
 The reporter publishes one idempotent comment per automated stable ID with the result, commit, branch or pull request, workflow run, artifacts, browser profiles, environment, timestamps, and retry. Physical Android cases remain manual and are never reported as automated.
+
+Before a production release, run the [physical Android release checklist](docs/release-checklist.md) against the exact deployed commit. Its install, offline-reopen, local-import, accessibility, and controlled-update evidence belongs to the manual Jira case only.
