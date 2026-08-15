@@ -300,7 +300,7 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
 .import-error textarea { width: 100%; min-height: 13rem; padding: .9rem; color: var(--color-text); font: .82rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; resize: vertical; border: 1px solid var(--line); border-radius: .8rem; background: var(--color-surface); }
 .import-error-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
 .notice { position: fixed; z-index: 30; right: 1rem; bottom: calc(6rem + env(safe-area-inset-bottom)); max-width: min(28rem, calc(100% - 2rem)); padding: .8rem 1rem; color: var(--cream); border-radius: .8rem; background: var(--deep); box-shadow: 0 .7rem 2rem var(--shadow-color); }
-.attachment-usage { overflow-wrap: anywhere; padding: .5rem .75rem; margin: 0 0 .65rem; color: var(--muted); font-size: .78rem; border-bottom: 1px solid var(--line); }
+.attachment-usage { overflow-wrap: anywhere; padding: .5rem .75rem; margin: 0 0 .65rem; color: var(--color-text); font-size: .78rem; border: 1px solid var(--color-border); border-radius: .65rem; background: var(--color-surface); }
 .attachments { min-width: 0; padding: .3rem .45rem; margin: .45rem; border: 1px solid var(--line); border-radius: .6rem; background: rgb(247 248 245 / 55%); }
 .activity-card .attachments { margin: .45rem 0 0; }
 .attachment-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
@@ -360,7 +360,11 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.6rem, 8vw, 6.4rem); line-he
   .day-route { grid-template-columns: 1fr; }
 }
 
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .hero-icon-action[aria-busy="true"]::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  .hero-icon-action[aria-busy="true"]::after { animation: none; }
+}
 
 /* Feature surfaces consume only the shared semantic layer. */
 .collection-hero, .hero, .topbar, .notice { color: var(--color-header-text); background: var(--color-header); }

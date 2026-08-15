@@ -32,16 +32,18 @@ describe('Vue migration boundaries', () => {
     repository.close();
   });
 
-  it('postpones an update without activating it and restores focus', async () => {
+  it('announces an update without stealing focus and postpones without activating it', async () => {
     const trigger = document.createElement('button');
     document.body.append(trigger); trigger.focus();
     const applyUpdate = vi.fn(async () => undefined);
     const wrapper = mount(UpdatePrompt, { attachTo: document.body, props: { applyUpdate } });
     useAppStore().showUpdate();
-    await vi.waitFor(() => expect(document.activeElement?.textContent?.trim()).toBe('Update now'));
+    await wrapper.vm.$nextTick();
+    expect(document.activeElement).toBe(trigger);
+    expect(wrapper.get('aside').attributes('aria-live')).toBe('polite');
     await wrapper.get('button:last-of-type').trigger('click');
     expect(applyUpdate).not.toHaveBeenCalled();
-    await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
+    expect(document.activeElement).toBe(trigger);
     wrapper.unmount(); trigger.remove();
   });
 
