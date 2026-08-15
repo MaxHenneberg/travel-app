@@ -75,6 +75,16 @@ function indexedDbBackend(db, storeName) {
       tx.objectStore(storeName).clear();
       await transactionDone(tx);
     },
+    async replaceTrip(id, key, value) {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      const records = await requestResult(store.getAll());
+      for (const record of records) {
+        try { if (tripId(record.value) === id) store.delete(record.id); } catch { /* Ignore unrelated corrupt records. */ }
+      }
+      store.put({ id: key, value: clone(value), updatedAt: new Date().toISOString() });
+      await transactionDone(tx);
+    },
   };
 }
 
@@ -94,6 +104,14 @@ function localBackend(storage, key) {
     async list() { const all = read(); return Object.keys(all).sort().map((id) => clone(all[id])); },
     async delete(id) { const all = read(); delete all[id]; write(all); },
     async clear() { write({}); },
+    async replaceTrip(id, key_, value) {
+      const all = read();
+      for (const [key, record] of Object.entries(all)) {
+        try { if (tripId(record) === id) delete all[key]; } catch { /* Ignore unrelated corrupt records. */ }
+      }
+      all[key_] = clone(value);
+      write(all);
+    },
   };
 }
 
@@ -106,6 +124,12 @@ function memoryBackend() {
     async list() { return [...records.keys()].sort().map((id) => clone(records.get(id))); },
     async delete(id) { records.delete(id); },
     async clear() { records.clear(); },
+    async replaceTrip(id, key, value) {
+      for (const [recordKey, record] of records) {
+        try { if (tripId(record) === id) records.delete(recordKey); } catch { /* Ignore unrelated corrupt records. */ }
+      }
+      records.set(key, clone(value));
+    },
   };
 }
 
@@ -163,6 +187,11 @@ export function createTripStore(options = {}) {
 
   return {
     async saveTrip(value) { await run('put', storageKey(value), value); return clone(value); },
+    async replaceTrip(id, value) {
+      if (typeof id !== 'string' || !id) throw new TypeError('A trip id is required for replacement.');
+      await run('replaceTrip', id, storageKey(value), value);
+      return clone(value);
+    },
     async getTrip(id, revision) {
       if (typeof id !== 'string' || !id) return null;
       if (revision !== undefined && revision !== null) {

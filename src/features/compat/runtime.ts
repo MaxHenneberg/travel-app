@@ -9,6 +9,8 @@ import { createAttachmentStore } from '../../lib/attachment-store.js';
 import { imageIsCached, resolveStopImage, validStopImages } from '../../lib/stop-images.js';
 import { applyTheme, readStoredTheme, themes } from '../../lib/theme.js';
 import { createTrailbookExport, shareOrDownloadTrailbook } from '../../lib/trailbook-export.js';
+import { claimPendingImport, deletePendingImport, purgeExpiredImports, putPendingImport } from '../../lib/pending-import.js';
+import { duplicateItinerary, validateImportTransport, validateTrailbookImport } from '../../lib/trailbook-import.js';
 
 let app;
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
@@ -19,12 +21,25 @@ window.trailbookCountryHistory = countryHistory;
 const SECTION_KEY = 'trailbook:primary-section';
 const initialSection = (() => { try { const value = sessionStorage.getItem(SECTION_KEY); return ['trip', 'route', 'history'].includes(value) ? value : 'trip'; } catch { return 'trip'; } })();
 const initialTheme = applyTheme(readStoredTheme());
+const shareParameters = new URL(window.location.href).searchParams;
+const shareClaimant = (() => {
+  try {
+    const key = 'trailbook:share-import-claimant';
+    const existing = sessionStorage.getItem(key);
+    if (existing) return existing;
+    const value = crypto.randomUUID();
+    sessionStorage.setItem(key, value);
+    return value;
+  } catch { return crypto.randomUUID(); }
+})();
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
-  importError: null, installPrompt: null, online: navigator.onLine, section: initialSection, theme: initialTheme.id, attachments: new Map(),
+  importError: null, installPrompt: null, online: navigator.onLine, section: shareParameters.has('share-target') ? 'trip' : initialSection, theme: initialTheme.id, attachments: new Map(),
   attachmentUsage: { bytes: 0, count: 0, limitBytes: attachmentStore.limits.totalBytes }, attachmentError: '', focusAfterRender: '',
-  pendingShareId: new URL(window.location.href).searchParams.get('share-target') === 'confirm'
-    ? new URL(window.location.href).searchParams.get('id') : null,
+  pendingShareId: shareParameters.get('share-target') === 'confirm' ? shareParameters.get('id') : null,
+  shareImport: shareParameters.get('share-target') === 'error'
+    ? { status: 'error', error: shareParameters.get('reason') || 'unreadable_file' }
+    : null,
 };
 
 const escapeHtml = (value = '') => String(value)
@@ -415,6 +430,10 @@ function repairPrompt(error, fileName) {
 }
 
 async function importFile(file) {
+  if (file.name?.toLowerCase().endsWith('.trailbook') || file.type === 'application/vnd.trailbook.itinerary+json') {
+    await stageTrailbookFile(file);
+    return;
+  }
   try {
     const candidate = parseItinerary(await file.text());
     await store.saveTrip(candidate);
@@ -430,6 +449,98 @@ async function importFile(file) {
     state.notice = '';
     await render();
   }
+}
+
+function clearShareLocation() {
+  const url = new URL(window.location.href);
+  for (const key of ['share-target', 'id', 'reason']) url.searchParams.delete(key);
+  history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+async function discardPendingImport({ keepError = false } = {}) {
+  const id = state.pendingShareId;
+  state.pendingShareId = null;
+  if (!keepError) state.shareImport = null;
+  clearShareLocation();
+  if (id) {
+    try { await deletePendingImport(id); } catch { /* The record is already unusable; do not block safe cancellation. */ }
+  }
+}
+
+async function loadPendingShare() {
+  if (!state.pendingShareId) { await render(); return; }
+  state.shareImport = { status: 'loading' };
+  state.section = 'trip'; state.view = 'collection'; state.trip = null; state.dayId = null; state.error = null;
+  await render();
+  try {
+    const record = await claimPendingImport(state.pendingShareId, shareClaimant);
+    if (!record) throw Object.assign(new Error('This pending import is unavailable.'), { code: 'unavailable' });
+    const result = await validateTrailbookImport(record, { source: record.source });
+    const savedTrips = await store.listTrips();
+    state.shareImport = {
+      status: 'review',
+      source: record.source,
+      candidate: result.candidate,
+      preview: result.preview,
+      conflict: savedTrips.some((trip) => tripId(trip) === tripId(result.candidate)),
+    };
+  } catch (error) {
+    state.shareImport = { status: 'error', error: error?.code || 'unreadable_file', message: error?.message };
+    await discardPendingImport({ keepError: true });
+  }
+  await render();
+}
+
+async function stageTrailbookFile(file) {
+  try {
+    validateImportTransport(file, { source: 'picker' });
+    const pending = await putPendingImport({ name: file.name, type: file.type, size: file.size, bytes: await file.arrayBuffer(), source: 'picker' });
+    state.pendingShareId = pending.id;
+    state.shareImport = { status: 'loading' };
+    const url = new URL(window.location.href);
+    url.searchParams.set('share-target', 'confirm');
+    url.searchParams.set('id', pending.id);
+    url.hash = '';
+    history.replaceState(null, '', `${url.pathname}${url.search}`);
+    await loadPendingShare();
+  } catch (error) {
+    state.pendingShareId = null;
+    state.shareImport = { status: 'error', error: error?.code || 'unreadable_file', message: error?.message };
+    state.section = 'trip'; state.view = 'collection'; state.trip = null; state.dayId = null;
+    await render();
+  }
+}
+
+async function finishSharedImport() {
+  const current = state.shareImport;
+  if (current?.status !== 'review') return;
+  const selection = current.conflict
+    ? document.querySelector('input[name="share-conflict"]:checked')?.value || 'cancel'
+    : 'import';
+  if (selection === 'cancel') {
+    await discardPendingImport();
+    state.notice = 'Import cancelled. Your saved trips were not changed.';
+    await render();
+    return;
+  }
+  const originalId = tripId(current.candidate);
+  const candidate = selection === 'duplicate' ? duplicateItinerary(current.candidate) : current.candidate;
+  try {
+    if (selection === 'replace') await store.replaceTrip(originalId, candidate);
+    else await store.saveTrip(candidate);
+  } catch (error) {
+    await discardPendingImport();
+    state.shareImport = { status: 'error', error: 'storage_failure', message: 'The trip could not be saved. Temporary import data was removed; existing trips were preserved.' };
+    await render();
+    return;
+  }
+  try { countryHistory.importItinerary(candidate); } catch { /* The validated trip remains usable if derived history cannot update. */ }
+  await discardPendingImport();
+  state.notice = selection === 'duplicate' ? 'Trip imported as a separate local copy.' : 'Trip imported and saved on this device.';
+  state.section = 'trip';
+  try { sessionStorage.setItem(SECTION_KEY, state.section); } catch { /* Continue without persistence. */ }
+  window.location.hash = tripHash(candidate);
+  if (window.location.hash === tripHash(candidate)) await loadRoute();
 }
 
 async function shareCurrent() {
@@ -667,23 +778,16 @@ function bindCommon() {
   document.querySelector('#install-app')?.addEventListener('click', async () => {
     closeMenu(); await state.installPrompt?.prompt(); state.installPrompt = null; render();
   });
-  document.querySelector('#cancel-shared-file')?.addEventListener('click', () => {
-    state.pendingShareId = null;
-    history.replaceState(null, '', `${location.pathname}${location.hash}`);
-    render();
+  document.querySelector('#cancel-shared-file')?.addEventListener('click', async () => {
+    await discardPendingImport();
+    state.notice = 'Import cancelled. Your saved trips were not changed.';
+    await render();
   });
-  document.querySelector('#confirm-shared-file')?.addEventListener('click', () => {
-    const database = indexedDB.open('trailbook-share-target', 1);
-    database.onsuccess = () => {
-      const transaction = database.result.transaction('pending', 'readwrite');
-      const record = transaction.objectStore('pending').get(state.pendingShareId);
-      record.onsuccess = async () => {
-        if (record.result?.file) await importFile(record.result.file);
-        transaction.objectStore('pending').delete(state.pendingShareId);
-        state.pendingShareId = null;
-      };
-    };
+  document.querySelector('#dismiss-shared-file')?.addEventListener('click', async () => {
+    await discardPendingImport();
+    await render();
   });
+  document.querySelector('#confirm-shared-file')?.addEventListener('click', finishSharedImport);
 }
 
 async function hydrateStopPictures() {
@@ -821,7 +925,11 @@ export function initializeLegacyApp(root) {
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
   window.addEventListener('beforeinstallprompt', onInstallPrompt);
-  loadRoute();
+  void purgeExpiredImports().catch(() => { /* Import remains available even if maintenance cannot run. */ });
+  loadRoute().then(() => {
+    if (state.pendingShareId) return loadPendingShare();
+    return undefined;
+  });
   return () => {
     window.removeEventListener('hashchange', onHashChange);
     window.removeEventListener('online', onOnline);
@@ -831,6 +939,49 @@ export function initializeLegacyApp(root) {
 }
 
 function shareTargetMarkup() {
-  if (!state.pendingShareId) return '';
-  return `<section class="notice-card" role="status" aria-label="Shared itinerary confirmation"><h2>Shared itinerary ready to review</h2><p>Nothing has been imported yet. Confirm to validate and save the shared file, or cancel without changing your trips.</p><button class="button primary" id="confirm-shared-file" type="button">Review and import shared file</button><button class="button subtle" id="cancel-shared-file" type="button">Cancel shared import</button></section>`;
+  const current = state.shareImport;
+  if (!state.pendingShareId && !current) return '';
+  if (!current || current.status === 'loading') {
+    return `<section class="share-import" role="status" aria-live="polite" data-testid="share-import-loading"><p class="eyebrow">Secure local import</p><h2>Checking shared itinerary…</h2><p>The trip has not been added to your collection.</p></section>`;
+  }
+  if (current.status === 'error') {
+    const messages = {
+      invalid_request: 'The share request was not a supported multipart file request.',
+      unexpected_files: 'Share exactly one .trailbook file. Extra files and fields are blocked.',
+      unsafe_filename: 'The shared filename looked like a path and was blocked.',
+      unsupported_extension: 'Only .trailbook itinerary files can be received from Android sharing.',
+      mime_mismatch: 'The file type did not match the .trailbook extension.',
+      file_too_large: 'The shared itinerary exceeded the configured file-size limit.',
+      empty_file: 'The shared itinerary was empty.',
+      invalid_utf8: 'The shared itinerary was not valid UTF-8 text.',
+      non_json: 'The shared file was not a JSON itinerary.',
+      invalid_json: 'The shared itinerary contained malformed JSON.',
+      unsupported_schema: 'The shared itinerary uses an unsupported schema version.',
+      invalid_schema: 'The shared itinerary does not match the supported v1 contract.',
+      active_content: 'The shared itinerary contained active or unsafe content.',
+      unavailable: 'This pending import is already being reviewed or has expired.',
+    };
+    return `<section class="share-import share-import-error" role="alert" data-testid="share-import-error"><p class="eyebrow">Import blocked</p><h2>This file was not imported</h2><p>${escapeHtml(current.message || messages[current.error] || 'The shared itinerary could not be read safely.')}</p><p>Your saved trips were not changed and no content from the file was executed.</p><button class="button subtle" id="dismiss-shared-file" type="button">Back to trips</button></section>`;
+  }
+  const { preview } = current;
+  return `<section class="share-import" aria-labelledby="share-import-title" data-testid="share-import-preview">
+    <header><div><p class="eyebrow">Secure local import · ${current.source === 'picker' ? 'File picker' : 'Android share target'}</p><h2 id="share-import-title">Review before importing</h2></div><span class="share-import-badge">Not imported</span></header>
+    <p class="share-import-source">Received as <strong>${escapeHtml(preview.fileName)}</strong>. Only the itinerary JSON is supported; attachments are never imported.</p>
+    <dl class="share-import-details">
+      <div><dt>Title</dt><dd>${escapeHtml(preview.title)}</dd></div>
+      <div><dt>Trip ID</dt><dd data-testid="share-import-trip-id">${escapeHtml(preview.tripId)}</dd></div>
+      <div><dt>Date range</dt><dd>${escapeHtml(preview.dateRange)}</dd></div>
+      <div><dt>Destinations</dt><dd>${escapeHtml(preview.destination)}</dd></div>
+      <div><dt>Schema</dt><dd>v${escapeHtml(preview.schemaVersion)}</dd></div>
+      <div><dt>Itinerary</dt><dd>${preview.dayCount} ${preview.dayCount === 1 ? 'day' : 'days'}</dd></div>
+    </dl>
+    ${preview.warnings.length ? `<div class="share-import-warnings" role="status"><strong>Warnings</strong><ul>${preview.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul></div>` : ''}
+    ${current.conflict ? `<fieldset class="share-import-conflict"><legend>A trip with ID ${escapeHtml(preview.tripId)} already exists</legend><p>Choose explicitly how Trailbook should handle it.</p>
+      <label><input type="radio" name="share-conflict" value="cancel" checked> Cancel and keep the saved trip</label>
+      <label><input type="radio" name="share-conflict" value="replace"> Replace all saved revisions with this itinerary</label>
+      <label><input type="radio" name="share-conflict" value="duplicate"> Keep both with a new local trip ID</label>
+    </fieldset>` : ''}
+    <div class="share-import-actions"><button class="button primary" id="confirm-shared-file" type="button">${current.conflict ? 'Continue with selection' : 'Import and open trip'}</button><button class="button subtle" id="cancel-shared-file" type="button">Cancel import</button></div>
+    <p class="share-import-trace" role="status">Validated locally against supported schema v1. Nothing is uploaded.</p>
+  </section>`;
 }
