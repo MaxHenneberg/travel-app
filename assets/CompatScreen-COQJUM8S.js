@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/runtime-C5AlDkeK.js","assets/runtime-9BT1y1Sa.css"])))=>i.map(i=>d[i]);
+import{a as e,i as t,n,o as r,r as i,s as a,t as o}from"./index-B7Orgu8L.js";var s=i({__name:`CompatScreen`,setup(i){let s=a(`root`),c;return e(async()=>{let{initializeLegacyApp:e}=await o(()=>import(`./runtime-C5AlDkeK.js`),__vite__mapDeps([0,1]));s.value&&(c=e(s.value))}),t(()=>c?.()),(e,t)=>(r(),n(`div`,{ref_key:`root`,ref:s,class:`legacy-app`},null,512))}});export{s as default};
