@@ -35,6 +35,9 @@ const shareClaimant = (() => {
     return value;
   } catch { return crypto.randomUUID(); }
 })();
+const androidOpenQueue: TrailbookAndroidOpen[] = [];
+let androidOpenActive = false;
+let androidOpenReady = false;
 const state = {
   view: 'collection', trip: null, dayId: null, error: null, notice: '',
   importError: null, installPrompt: null, online: navigator.onLine, section: shareParameters.has('share-target') ? 'trip' : initialSection, theme: initialTheme.id, attachments: new Map(),
@@ -527,10 +530,14 @@ async function loadPendingShare() {
   await render();
 }
 
-async function stageTrailbookFile(file) {
+async function stageTrailbookFile(file, source = 'picker') {
   try {
-    validateImportTransport(file, { source: 'picker' });
-    const pending = await putPendingImport({ name: file.name, type: file.type, size: file.size, bytes: await file.arrayBuffer(), source: 'picker' });
+    validateImportTransport(file, { source });
+    const pending = await putPendingImport({ name: file.name, type: file.type, size: file.size, bytes: await file.arrayBuffer(), source });
+    const supersededId = source === 'android-view' ? state.pendingShareId : null;
+    if (supersededId && supersededId !== pending.id) {
+      try { await deletePendingImport(supersededId); } catch { /* The newer bounded delivery remains safe to review. */ }
+    }
     state.pendingShareId = pending.id;
     state.shareImport = { status: 'loading' };
     const url = new URL(window.location.href);
@@ -546,6 +553,48 @@ async function stageTrailbookFile(file) {
     await render();
   }
 }
+
+function androidFile(payload: TrailbookAndroidOpenFile) {
+  let binary;
+  try { binary = atob(payload.base64); }
+  catch { throw Object.assign(new Error('The Android file payload was not valid Base64.'), { code: 'unreadable_file' }); }
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new File([bytes], payload.name, { type: payload.type });
+}
+
+async function drainAndroidOpenQueue() {
+  if (!androidOpenReady || androidOpenActive) return;
+  androidOpenActive = true;
+  try {
+    while (androidOpenQueue.length) {
+      const payload = androidOpenQueue.shift();
+      if (!payload) continue;
+      if (payload.kind === 'error') {
+        state.pendingShareId = null;
+        state.shareImport = { status: 'error', error: payload.code || 'unreadable_file' };
+        state.section = 'trip'; state.view = 'collection'; state.trip = null; state.dayId = null;
+        await render();
+        continue;
+      }
+      try {
+        await stageTrailbookFile(androidFile(payload), 'android-view');
+      } catch (error) {
+        state.pendingShareId = null;
+        state.shareImport = { status: 'error', error: error?.code || 'unreadable_file', message: error?.message };
+        await render();
+      }
+    }
+  } finally {
+    androidOpenActive = false;
+  }
+}
+
+window.trailbookReceiveAndroidOpen = (payload) => {
+  androidOpenQueue.push(payload);
+  void drainAndroidOpenQueue();
+};
+if (Array.isArray(window.__trailbookAndroidOpenQueue)) androidOpenQueue.push(...window.__trailbookAndroidOpenQueue.splice(0));
 
 async function finishSharedImport() {
   const current = state.shareImport;
@@ -976,6 +1025,7 @@ async function loadRoute() {
 
 export function initializeLegacyApp(root) {
   app = root;
+  androidOpenReady = true;
   const onHashChange = () => loadRoute();
   const onOnline = () => { state.online = true; loadRoute(); };
   const onOffline = () => { state.online = false; render(); };
@@ -987,7 +1037,7 @@ export function initializeLegacyApp(root) {
   void purgeExpiredImports().catch(() => { /* Import remains available even if maintenance cannot run. */ });
   loadRoute().then(() => {
     if (state.pendingShareId) return loadPendingShare();
-    return undefined;
+    return drainAndroidOpenQueue();
   });
   return () => {
     disposeKasumi();
@@ -1012,6 +1062,7 @@ function shareTargetMarkup() {
       unsupported_extension: 'Only .trailbook itinerary files can be received from Android sharing.',
       mime_mismatch: 'The file type did not match the .trailbook extension.',
       file_too_large: 'The shared itinerary exceeded the configured file-size limit.',
+      permission_denied: 'Android did not grant temporary read access to this file.',
       empty_file: 'The shared itinerary was empty.',
       invalid_utf8: 'The shared itinerary was not valid UTF-8 text.',
       non_json: 'The shared file was not a JSON itinerary.',
@@ -1025,7 +1076,7 @@ function shareTargetMarkup() {
   }
   const { preview } = current;
   return `<section class="share-import" aria-labelledby="share-import-title" data-testid="share-import-preview">
-    <header><div><p class="eyebrow">Secure local import · ${current.source === 'picker' ? 'File picker' : 'Android share target'}</p><h2 id="share-import-title">Review before importing</h2></div><span class="share-import-badge">Not imported</span></header>
+    <header><div><p class="eyebrow">Secure local import · ${current.source === 'picker' ? 'File picker' : current.source === 'android-view' ? 'Android file open' : 'Android share target'}</p><h2 id="share-import-title">Review before importing</h2></div><span class="share-import-badge">Not imported</span></header>
     <p class="share-import-source">Received as <strong>${escapeHtml(preview.fileName)}</strong>. Only the itinerary JSON is supported; attachments are never imported.</p>
     <dl class="share-import-details">
       <div><dt>Title</dt><dd>${escapeHtml(preview.title)}</dd></div>

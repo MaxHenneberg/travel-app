@@ -16,7 +16,9 @@
     "test:traceability": "node scripts/validate-traceability.mjs",
     "test:traceability:jira": "node scripts/validate-traceability.mjs --jira",
     "report:jira": "node scripts/report-jira-results.mjs",
-    "check:bundles": "node scripts/check-bundle-budgets.mjs"
+    "check:bundles": "node scripts/check-bundle-budgets.mjs",
+    "check:android": "node scripts/check-android-package.mjs",
+    "render:assetlinks": "node scripts/render-assetlinks.mjs"
   },
   "dependencies": {
     "ajv": "8.17.1",

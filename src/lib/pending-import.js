@@ -72,7 +72,7 @@ export async function putPendingImport(file, options = {}) {
       bytes,
       createdAt: now,
       state: 'pending',
-      source: file.source === 'picker' ? 'picker' : 'share-target',
+      source: ['picker', 'android-view'].includes(file.source) ? file.source : 'share-target',
     });
     await transactionDone(transaction);
     return { id, duplicate: false };

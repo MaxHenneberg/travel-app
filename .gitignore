@@ -7,3 +7,11 @@ blob-report/
 .env.*
 !.env.example
 *.log
+
+# Android builds and signing material
+android/.gradle/
+android/local.properties
+android/**/build/
+*.jks
+*.keystore
+keystore.properties
