@@ -32,6 +32,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run test:fixtures
       - run: npm run test:unit
       - run: npm run build
       - run: npm run test:traceability

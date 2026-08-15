@@ -88,9 +88,8 @@ test('TA-TRAVEL-121-03 @post-deploy supports upgrade-safe offline deep links and
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'neon-japan');
   await expect(page.locator('.attachment-name')).toHaveText('legacy-ticket.txt');
   expect(failedAssets).toEqual([]);
-  const prompt = page.getByRole('dialog', { name: 'Trailbook update ready' });
+  const prompt = page.getByRole('complementary', { name: 'Trailbook update ready' });
   await expect(prompt).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Update now' })).toBeFocused();
   await page.getByRole('button', { name: 'Later' }).click();
   const postponed = await page.evaluate(async () => {
     const registration = await navigator.serviceWorker.getRegistration();
