@@ -46,11 +46,8 @@ test('TA-TRAVEL-7-01 @pr renders activity, timing, transport, and practical deta
   await expect(activity).toContainText('Sé → Graça');
   const timelineSpacing = await activity.evaluate((node) => {
     const time = node.querySelector('.activity-time').getBoundingClientRect();
-    const card = node.querySelector('.activity-card');
-    const cardBox = card.getBoundingClientRect();
-    const marker = getComputedStyle(card, '::before');
-    const markerLeft = cardBox.left + Number.parseFloat(marker.left);
-    return { timeRight: time.right, markerLeft };
+    const marker = node.querySelector('.timeline-node').getBoundingClientRect();
+    return { timeRight: time.right, markerLeft: marker.left };
   });
   expect(timelineSpacing.markerLeft).toBeGreaterThan(timelineSpacing.timeRight);
 });
@@ -84,16 +81,17 @@ test('TA-TRAVEL-8-01 @pr opens a place through an encoded Google Maps link', asy
   expect(url.searchParams.get('query_place_id')).toBeTruthy();
 });
 
-test('TA-TRAVEL-8-02 @pr preserves ordered stops in a day route', async ({ page }, testInfo) => {
+test('TA-TRAVEL-8-02 @pr keeps ordered stops exclusively in Map-Route', async ({ page }, testInfo) => {
   onlyProject(testInfo, 'android-chrome');
   await openSample(page, 'river-day');
-  await page.getByRole('button', { name: 'View day route' }).click();
-  const route = page.getByRole('list', { name: 'Ordered day route' });
+  await expect(page.locator('[data-view-day-route], #day-route')).toHaveCount(0);
+  await expect(page.getByText('Day route', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Map-Route' }).click();
+  const route = page.getByRole('list', { name: 'Ordered map route' });
   await expect(route.getByRole('listitem')).toHaveCount(3);
   await expect(route.getByRole('listitem').nth(0)).toContainText('Jerónimos Monastery');
   await expect(route.getByRole('listitem').nth(1)).toContainText('Jardim de Belém');
   await expect(route.getByRole('listitem').nth(2)).toContainText('MAAT Lisbon');
-  await expect(page.getByRole('link', { name: /Open day route/ })).toHaveCount(0);
 });
 
 test('TA-TRAVEL-8-03 @pr explains that external maps are unavailable offline', async ({ page, context }, testInfo) => {

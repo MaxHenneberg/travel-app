@@ -12,6 +12,7 @@ import { createKasumiParallax } from '../../lib/kasumi.js';
 
 let app;
 let disposeKasumi = () => {};
+let timelineResizeObserver;
 const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
 const store = createTripStore();
 const attachmentStore = createAttachmentStore();
@@ -155,6 +156,7 @@ function renderActivity(activity) {
     <figcaption ${image.caption || image.credit || image.sourceUrl ? '' : 'hidden'}>${image.caption ? `<span data-image-caption>${escapeHtml(image.caption)}</span>` : '<span data-image-caption></span>'}${image.credit ? `<span data-image-credit>Photo: ${escapeHtml(image.credit)}</span>` : '<span data-image-credit></span>'}${image.sourceUrl ? `<a data-image-source href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noopener noreferrer">Image source</a>` : '<a data-image-source target="_blank" rel="noopener noreferrer" hidden>Image source</a>'}</figcaption>
   </figure>` : '';
   return `<article class="activity" data-activity-id="${escapeHtml(activity.id)}" data-testid="activity-item">
+    <span class="timeline-node" aria-hidden="true"></span>
     <div class="activity-time">${time ? `<time${activity.startsAt ? ` datetime="${escapeHtml(activity.startsAt)}"` : ''}>${escapeHtml(time)}</time>` : '<span class="unscheduled">Any time</span>'}</div>
     <div class="activity-card">
       <p class="activity-type">${escapeHtml(firstValue(activity.type, activity.category, 'Activity'))}</p>
@@ -169,22 +171,6 @@ function renderActivity(activity) {
       ${attachmentPanel({ tripId: tripId(state.trip), type: 'stop', ownerId: activity.id }, 'Stop documents')}
     </div>
   </article>`;
-}
-
-function renderDayRoute(day) {
-  const stops = (day?.activities ?? []).flatMap((activity) => {
-    const location = activityLocation(activity);
-    if (!location) return [];
-    const label = typeof location === 'string' ? location : firstValue(location.name, location.address, activity.title);
-    const transport = activity.transport && (typeof activity.transport === 'string' ? activity.transport
-      : [activity.transport.mode, activity.transport.line].filter(Boolean).join(' · '));
-    return [{ title: activity.title, label, transport }];
-  });
-  if (!stops.length) return '';
-  return `<section id="day-route" class="day-route" aria-labelledby="day-route-title">
-    <div><h3 id="day-route-title" tabindex="-1">Day route</h3><p>Available offline</p></div>
-    <ol aria-label="Ordered day route">${stops.map((stop, index) => `<li><span class="route-marker" aria-hidden="true">${index + 1}</span><div><strong>${escapeHtml(stop.title)}</strong><span>${escapeHtml(stop.label)}</span>${stop.transport ? `<small>${escapeHtml(stop.transport)}</small>` : ''}</div></li>`).join('')}</ol>
-  </section>`;
 }
 
 function tripHash(trip, dayId = null) {
@@ -310,7 +296,33 @@ function mapRouteMarkup() {
     return `<a href="${escapeHtml(tripHash(state.trip, item.id))}" data-route-day><span>Day ${index + 1}</span><strong>${escapeHtml(item.title || item.date)}</strong><small>${count} ${count === 1 ? 'stop' : 'stops'}</small></a>`;
   }).join('')}</div></section>`;
   const stops = (day.activities ?? []).filter(activityLocation);
-  return `<section class="route-view" aria-labelledby="route-title"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} route</h2><p>Available offline</p></header>${stops.length ? `<ol class="route-stop-list">${stops.map(routeStopMarkup).join('')}</ol>` : '<div class="empty-route"><strong>No mapped stops</strong></div>'}</section>`;
+  return `<section class="route-view" aria-labelledby="route-title"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} route</h2><p>Available offline</p></header>${stops.length ? `<ol class="route-stop-list" aria-label="Ordered map route">${stops.map(routeStopMarkup).join('')}</ol>` : '<div class="empty-route"><strong>No mapped stops</strong></div>'}</section>`;
+}
+
+function observeTimeline() {
+  timelineResizeObserver?.disconnect();
+  timelineResizeObserver = undefined;
+  const timeline = document.querySelector('.timeline');
+  const spine = timeline?.querySelector('.timeline-spine');
+  const nodes = [...(timeline?.querySelectorAll('.timeline-node') ?? [])];
+  if (!timeline || !spine || nodes.length < 2) {
+    if (spine) spine.hidden = true;
+    return;
+  }
+  const position = () => {
+    const timelineBox = timeline.getBoundingClientRect();
+    const firstBox = nodes[0].getBoundingClientRect();
+    const lastBox = nodes.at(-1).getBoundingClientRect();
+    const firstCenter = firstBox.top + (firstBox.height / 2) - timelineBox.top;
+    const lastCenter = lastBox.top + (lastBox.height / 2) - timelineBox.top;
+    timeline.style.setProperty('--timeline-spine-top', `${firstCenter}px`);
+    timeline.style.setProperty('--timeline-spine-height', `${Math.max(0, lastCenter - firstCenter)}px`);
+  };
+  position();
+  if ('ResizeObserver' in window) {
+    timelineResizeObserver = new ResizeObserver(position);
+    timelineResizeObserver.observe(timeline);
+  }
 }
 
 async function renderUtilitySection() {
@@ -375,11 +387,9 @@ async function renderTrip(savedTrips) {
         <p class="attachment-usage" aria-label="Local attachment storage usage. ${formatBytes(state.attachmentUsage.bytes)} of ${formatBytes(state.attachmentUsage.limitBytes)} used. ${state.attachmentUsage.count} files. Per-file limit ${formatBytes(attachmentStore.limits.perFileBytes)}.">Documents · ${state.attachmentUsage.count} · ${formatBytes(state.attachmentUsage.bytes)} / ${formatBytes(state.attachmentUsage.limitBytes)}</p>
         ${day ? `<article class="day-panel">
           <header class="day-heading"><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">← Trip overview</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 data-testid="selected-day-title">${escapeHtml(day.title || day.date)}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
-            ${renderDayRoute(day) ? '<div class="day-toolbar"><button class="button subtle" data-view-day-route type="button" aria-label="View day route">Route ↓</button></div>' : ''}
           </header>
           ${attachmentPanel({ tripId: tripId(state.trip), type: 'day', ownerId: day.id }, 'Day documents')}
-          ${(day.activities ?? []).length ? `<div class="timeline">${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No plans yet</strong></div>'}
-          ${renderDayRoute(day)}
+          ${(day.activities ?? []).length ? `<div class="timeline"><span class="timeline-spine" aria-hidden="true"></span>${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No plans yet</strong></div>'}
         </article>` : `<article class="trip-overview" data-testid="trip-overview">
           <header><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day</p>'}</header>
           ${attachmentPanel({ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }, 'Trip documents')}
@@ -392,6 +402,7 @@ async function renderTrip(savedTrips) {
   </div>`;
   bindCommon();
   hydrateStopPictures();
+  observeTimeline();
 }
 
 async function render() {
@@ -732,10 +743,6 @@ async function hydrateStopPictures() {
     }, { rootMargin: '300px 0px' });
     observer.observe(figure);
   }));
-  document.querySelector('[data-view-day-route]')?.addEventListener('click', () => {
-    document.querySelector('#day-route')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    document.querySelector('#day-route-title')?.focus({ preventScroll: true });
-  });
 }
 
 async function loadPublished(target) {
