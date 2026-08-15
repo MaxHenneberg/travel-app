@@ -56,6 +56,10 @@ export function validateMapping(mapping) {
     assert(!jiraKeys.has(item.jiraKey), `Jira task ${item.jiraKey} is mapped more than once`);
     assert(Array.isArray(item.execution) && item.execution.length > 0, `${item.id} has no execution environment`);
     assert(Array.isArray(item.profiles) && item.profiles.length > 0, `${item.id} has no browser profile`);
+    if (item.evidence === 'manual') {
+      assert(item.execution.length === 1 && item.execution[0] === 'manual-release', `${item.id} manual evidence must not enter automated execution`);
+      assert(item.profiles.length === 1 && item.profiles[0] === 'physical-android', `${item.id} manual evidence must use physical-android`);
+    }
     ids.add(item.id);
     jiraKeys.add(item.jiraKey);
   }
