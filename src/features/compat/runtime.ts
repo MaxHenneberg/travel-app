@@ -219,14 +219,18 @@ function schemaExportLink(className = 'button ghost') {
 }
 
 function kasumiMarkup() {
-  return `<div class="kasumi" data-testid="kasumi-decoration" aria-hidden="true">
-    <svg class="kasumi-layer kasumi-layer-far" data-kasumi-layer="far" viewBox="0 0 1200 360" preserveAspectRatio="xMidYMid slice" focusable="false">
-      <path d="M-80 92h220V70h174v30h226V76h190v24h230V72h320"/>
-      <path d="M-120 132h282v-18h210v24h244v-20h250v18h400"/>
+  return `<div class="kasumi" data-kasumi-stage data-testid="kasumi-decoration" aria-hidden="true">
+    <svg class="kasumi-layer kasumi-layer-far" data-kasumi-layer="far" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" focusable="false">
+      <path d="M-100 86h240V62h180v32h242V68h206v28h250V64h260"/>
+      <path d="M-160 182h300v-22h228v30h268v-26h282v24h420"/>
+      <path d="M-80 430h260v-28h210v34h286v-26h240v30h360"/>
+      <path d="M-140 612h320v-20h250v28h274v-24h298v22h340"/>
     </svg>
-    <svg class="kasumi-layer kasumi-layer-near" data-kasumi-layer="near" viewBox="0 0 1200 360" preserveAspectRatio="xMidYMid slice" focusable="false">
-      <path d="M-100 250h250v-30h185v38h270v-28h196v34h235v-26h270"/>
-      <path d="M40 300h225v-20h250v28h190v-22h270v18h260"/>
+    <svg class="kasumi-layer kasumi-layer-near" data-kasumi-layer="near" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" focusable="false">
+      <path d="M-120 270h270v-34h198v42h286v-32h210v38h252v-30h300"/>
+      <path d="M20 356h240v-24h268v32h204v-26h292v22h280"/>
+      <path d="M-180 520h300v-36h220v44h310v-34h230v40h300"/>
+      <path d="M40 666h250v-22h278v30h216v-24h300v20h260"/>
     </svg>
   </div>`;
 }
@@ -311,16 +315,17 @@ function mapRouteMarkup() {
 
 async function renderUtilitySection() {
   const history = state.section === 'history';
-  app.innerHTML = `<div class="app-shell utility-shell">${topbar()}<header class="utility-hero" data-kasumi-header>${kasumiMarkup()}<div class="utility-hero-content"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></div></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
+  app.innerHTML = `<div class="app-shell utility-shell">${kasumiMarkup()}${topbar()}<header class="utility-hero"><div class="utility-hero-content"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></div></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
   bindCommon();
 }
 
 async function renderCollection(savedTrips) {
   const trips = uniqueTrips(savedTrips);
   app.innerHTML = `<div class="app-shell">
+    ${kasumiMarkup()}
     ${topbar()}
-    <header class="collection-hero" data-kasumi-header>
-      ${kasumiMarkup()}<div class="collection-hero-content"><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
+    <header class="collection-hero">
+      <div class="collection-hero-content"><p class="eyebrow">Your pocket itineraries</p><h1>Your trips</h1><p>Open a trip overview, choose a day when you need it, or bring another itinerary onto this device.</p></div>
     </header>
     <main class="collection-main" data-testid="primary-content">
       ${shareTargetMarkup()}${importErrorMarkup()}
@@ -354,8 +359,9 @@ async function renderTrip(savedTrips) {
   const days = tripDays(state.trip);
   const day = currentDay();
   app.innerHTML = `<div class="app-shell">
+    ${kasumiMarkup()}
     ${topbar()}
-    <header class="hero" data-kasumi-header>${kasumiMarkup()}<div class="hero-content">
+    <header class="hero"><div class="hero-content">
       <p class="eyebrow">${escapeHtml(tripDestination(state.trip))}</p>
       <h1 data-testid="trip-title">${escapeHtml(tripTitle(state.trip))}</h1>
       <div class="hero-meta"><span>${escapeHtml(dateRange(state.trip))}</span><span>${days.length} ${days.length === 1 ? 'day' : 'days'}</span><span>Revision ${revision(state.trip)}</span></div>
@@ -392,7 +398,7 @@ async function render() {
   const savedTrips = await store.listTrips();
   if (state.trip) await refreshAttachmentState();
   if (state.error) {
-    app.innerHTML = `<div class="app-shell">${topbar()}<main class="single-column"><section class="error-card"><p class="eyebrow">Unable to open trip</p><h1>${escapeHtml(state.error.title)}</h1><p>${escapeHtml(state.error.message)}</p><a class="button primary" href="${escapeHtml(baseUrl.href)}">Back to all trips</a>${savedTrips.length ? `<div class="error-library"><h2>Trips on this device</h2>${savedTrips.map((trip) => tripCard(trip)).join('')}</div>` : ''}</section></main>${noticeMarkup()}</div>`;
+    app.innerHTML = `<div class="app-shell">${kasumiMarkup()}${topbar()}<main class="single-column"><section class="error-card"><p class="eyebrow">Unable to open trip</p><h1>${escapeHtml(state.error.title)}</h1><p>${escapeHtml(state.error.message)}</p><a class="button primary" href="${escapeHtml(baseUrl.href)}">Back to all trips</a>${savedTrips.length ? `<div class="error-library"><h2>Trips on this device</h2>${savedTrips.map((trip) => tripCard(trip)).join('')}</div>` : ''}</section></main>${noticeMarkup()}</div>`;
     bindCommon();
     return;
   }

@@ -13,9 +13,9 @@ test('selects parallax only for capable motion-enabled clients', () => {
 });
 
 test('reduced motion stays static without observers, listeners, layout reads, or frames', () => {
-  const dom = new JSDOM('<header data-kasumi-header></header>');
-  const header = dom.window.document.querySelector('header');
-  header.getBoundingClientRect = () => { throw new Error('layout must not be read'); };
+  const dom = new JSDOM('<div data-kasumi-stage></div>');
+  const stage = dom.window.document.querySelector('[data-kasumi-stage]');
+  stage.getBoundingClientRect = () => { throw new Error('layout must not be read'); };
   let observerCalls = 0;
   let frameCalls = 0;
   const viewport = {
@@ -31,20 +31,21 @@ test('reduced motion stays static without observers, listeners, layout reads, or
     navigatorObject: {},
     observerFactory: () => { observerCalls += 1; },
   });
-  assert.equal(header.dataset.kasumiMode, KASUMI_MODE.REDUCED);
+  assert.equal(stage.dataset.kasumiMode, KASUMI_MODE.REDUCED);
   assert.equal(observerCalls, 0);
   assert.equal(frameCalls, 0);
 });
 
-test('observes visibility and coalesces passive scroll work into one animation frame', () => {
-  const dom = new JSDOM('<header data-kasumi-header></header>');
-  const header = dom.window.document.querySelector('header');
-  header.getBoundingClientRect = () => ({ top: -100, height: 400 });
+test('keeps the page stage active and coalesces document scroll work into animation frames', () => {
+  const dom = new JSDOM('<div data-kasumi-stage></div>');
+  const stage = dom.window.document.querySelector('[data-kasumi-stage]');
   let observerCallback;
   let scrollHandler;
   let scrollOptions;
   const frames = [];
   const viewport = {
+    scrollY: 0,
+    innerHeight: 900,
     matchMedia: () => ({ matches: false }),
     CSS: { supports: () => true },
     IntersectionObserver: class {},
@@ -59,19 +60,26 @@ test('observes visibility and coalesces passive scroll work into one animation f
     navigatorObject: { deviceMemory: 8, hardwareConcurrency: 8 },
     observerFactory: (callback) => { observerCallback = callback; return { observe: () => {}, disconnect: () => {} }; },
   });
-  assert.equal(header.dataset.kasumiMode, KASUMI_MODE.PARALLAX);
+  assert.equal(stage.dataset.kasumiMode, KASUMI_MODE.PARALLAX);
   assert.equal(scrollHandler, undefined);
-  observerCallback([{ target: header, isIntersecting: true }]);
-  assert.equal(header.dataset.kasumiActive, 'true');
+  observerCallback([{ target: stage, isIntersecting: true }]);
+  assert.equal(stage.dataset.kasumiActive, 'true');
   assert.deepEqual(scrollOptions, { passive: true });
   scrollHandler();
   scrollHandler();
   assert.equal(frames.length, 1);
   frames[0]();
-  assert.equal(header.style.getPropertyValue('--kasumi-far-shift'), '6.00px');
-  assert.equal(header.style.getPropertyValue('--kasumi-near-shift'), '16.00px');
-  observerCallback([{ target: header, isIntersecting: false }]);
-  assert.equal(header.dataset.kasumiActive, 'false');
+  assert.equal(stage.style.getPropertyValue('--kasumi-far-shift'), '0.00px');
+  assert.equal(stage.style.getPropertyValue('--kasumi-near-shift'), '0.00px');
+  viewport.scrollY = 1000;
+  scrollHandler();
+  scrollHandler();
+  assert.equal(frames.length, 2);
+  frames[1]();
+  assert.equal(stage.style.getPropertyValue('--kasumi-far-shift'), '54.00px');
+  assert.equal(stage.style.getPropertyValue('--kasumi-near-shift'), '144.00px');
+  observerCallback([{ target: stage, isIntersecting: false }]);
+  assert.equal(stage.dataset.kasumiActive, 'false');
   assert.equal(scrollHandler, undefined);
   dispose();
 });

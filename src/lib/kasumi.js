@@ -32,8 +32,8 @@ export function createKasumiParallax({
   navigatorObject = navigator,
   observerFactory = (callback) => new IntersectionObserver(callback, { threshold: 0 }),
 } = {}) {
-  const headers = [...root.querySelectorAll('[data-kasumi-header]')];
-  if (!headers.length) return () => {};
+  const stages = [...root.querySelectorAll('[data-kasumi-stage]')];
+  if (!stages.length) return () => {};
 
   const reducedMotion = viewport.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
   const mode = resolveKasumiMode({
@@ -46,28 +46,29 @@ export function createKasumiParallax({
     supportsAnimationFrame: typeof viewport.requestAnimationFrame === 'function',
     supportsIntersectionObserver: typeof viewport.IntersectionObserver === 'function',
   });
-  headers.forEach((header) => { header.dataset.kasumiMode = mode; });
+  stages.forEach((stage) => { stage.dataset.kasumiMode = mode; });
   if (mode !== KASUMI_MODE.PARALLAX) return () => {};
 
-  const visibleHeaders = new Set();
+  const visibleStages = new Set();
   let animationFrame = null;
   let listening = false;
 
   const update = () => {
     animationFrame = null;
-    for (const header of visibleHeaders) {
-      const bounds = header.getBoundingClientRect();
-      const progress = clamp(-bounds.top, 0, bounds.height);
-      header.style.setProperty('--kasumi-far-shift', `${(progress * 0.06).toFixed(2)}px`);
-      header.style.setProperty('--kasumi-near-shift', `${(progress * 0.16).toFixed(2)}px`);
+    const scrollTop = Number.isFinite(viewport.scrollY) ? viewport.scrollY : (viewport.pageYOffset || 0);
+    const travelLimit = Math.min(1200, Math.max(640, viewport.innerHeight || 0));
+    const progress = clamp(scrollTop, 0, travelLimit);
+    for (const stage of visibleStages) {
+      stage.style.setProperty('--kasumi-far-shift', `${(progress * 0.06).toFixed(2)}px`);
+      stage.style.setProperty('--kasumi-near-shift', `${(progress * 0.16).toFixed(2)}px`);
     }
   };
   const onScroll = () => {
-    if (animationFrame !== null || !visibleHeaders.size || root.visibilityState === 'hidden') return;
+    if (animationFrame !== null || !visibleStages.size || root.visibilityState === 'hidden') return;
     animationFrame = viewport.requestAnimationFrame(update);
   };
   const syncScrollListener = () => {
-    const shouldListen = visibleHeaders.size > 0 && root.visibilityState !== 'hidden';
+    const shouldListen = visibleStages.size > 0 && root.visibilityState !== 'hidden';
     if (shouldListen === listening) return;
     listening = shouldListen;
     if (listening) viewport.addEventListener('scroll', onScroll, { passive: true });
@@ -77,12 +78,13 @@ export function createKasumiParallax({
   const observer = observerFactory((entries) => {
     for (const entry of entries) {
       entry.target.dataset.kasumiActive = entry.isIntersecting ? 'true' : 'false';
-      if (entry.isIntersecting) visibleHeaders.add(entry.target);
-      else visibleHeaders.delete(entry.target);
+      if (entry.isIntersecting) visibleStages.add(entry.target);
+      else visibleStages.delete(entry.target);
     }
     syncScrollListener();
+    onScroll();
   });
-  headers.forEach((header) => observer.observe(header));
+  stages.forEach((stage) => observer.observe(stage));
   root.addEventListener('visibilitychange', onVisibilityChange);
 
   return () => {
