@@ -168,7 +168,7 @@ test('TA-TRAVEL-10-02 @pr navigates through cached itinerary content offline', a
   await expect(page.getByTestId('trip-overview')).toBeVisible();
   await page.getByRole('link', { name: 'All trips' }).first().click();
   await expect(page.getByRole('heading', { name: 'Your trips' })).toBeVisible();
-  await page.getByRole('link', { name: 'Open trip overview' }).click();
+  await page.locator('[data-trip-id="weekend-lisbon"]').getByRole('link', { name: 'Open trip overview' }).click();
   await page.getByTestId('trip-overview').getByRole('link', { name: /Belém & the river/ }).click();
   await expect(page.getByRole('heading', { name: 'Belém & the river' })).toBeVisible();
   await expect(page.locator('[data-activity-id="maat"]')).toBeVisible();
@@ -356,5 +356,5 @@ test('TA-TRAVEL-60-02 @pr keeps invalid-import feedback complete, private, copya
   await page.getByRole('link', { name: 'All trips' }).first().click();
   await expect(page.locator('[data-trip-id="weekend-lisbon"]')).toBeVisible();
   await expect(page.locator('[data-trip-id="city-break"]')).toBeVisible();
-  await expect(page.locator('.trip-card')).toHaveCount(2);
+  await expect(page.locator('.trip-card')).toHaveCount(3);
 });

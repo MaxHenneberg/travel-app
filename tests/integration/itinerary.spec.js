@@ -8,7 +8,7 @@ const validItinerary = {
 test('TA-TRAVEL-5-01 @pr loads the meaningful published itinerary into collection and overview', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'A long weekend in Lisbon' })).toBeVisible();
-  await page.getByRole('link', { name: 'Open trip overview' }).click();
+  await page.locator('[data-trip-id="weekend-lisbon"]').getByRole('link', { name: 'Open trip overview' }).click();
   await expect(page.getByTestId('trip-title')).toHaveText('A long weekend in Lisbon');
   await expect(page.getByTestId('trip-overview')).toBeVisible();
   await expect(page.locator('.overview-day-card')).toHaveCount(3);

@@ -26,7 +26,7 @@ test('TA-TRAVEL-6-01 @pr browses overview days and activities in source-defined 
 test('TA-TRAVEL-6-02 @pr preserves collection, overview, and day state across history and refresh', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'android-chrome', 'Android navigation coverage');
   await page.goto('./');
-  await page.getByRole('link', { name: 'Open trip overview' }).tap();
+  await page.locator('[data-trip-id="weekend-lisbon"]').getByRole('link', { name: 'Open trip overview' }).tap();
   await expect(page).toHaveURL(/#\/trip\/weekend-lisbon\/v\/1$/);
   await page.getByTestId('trip-overview').getByRole('link', { name: /Friday · 18 September Arrival & Alfama/ }).tap();
   await expect(page).toHaveURL(/\/day\/arrival$/);
