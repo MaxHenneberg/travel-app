@@ -4,7 +4,7 @@ The `android/` project is a deliberately small WebView wrapper around the same d
 
 ## Security and import flow
 
-The exported activity accepts only `content://` URIs for the Trailbook MIME type or the two documented fallback MIME types (`application/octet-stream` and `application/json`) when the URI path ends in `.trailbook`. It does not register `*/*`, `file://`, HTTP(S) app links, or broad storage access. The manifest grants only `INTERNET`.
+The exported activity advertises only `content://` URIs for the Trailbook MIME type and the two documented fallback MIME types (`application/octet-stream` and `application/json`). Android cannot safely combine a filename filter with arbitrary content-provider authorities: URI path matching requires a concrete host and a provider URI path is not the user-visible filename. The fallback MIME filters therefore remain provider-neutral, while the native policy requires the provider's `OpenableColumns.DISPLAY_NAME` to end in `.trailbook` before reading any bytes. It does not register `*/*`, `file://`, HTTP(S) app links, or broad storage access. The manifest grants only `INTERNET`.
 
 At runtime the activity obtains the provider display name and size, rejects path-like names, unapproved MIME types, empty files, and declared files above 2 MiB, then copies at most 2 MiB through `ContentResolver.openInputStream`. It never resolves or reads a filesystem path. The bytes are delivered only after the WebView has loaded the pinned HTTPS origin and project path. JavaScript is never accepted from Android; the native payload is data encoded by `JSONObject` and Base64.
 

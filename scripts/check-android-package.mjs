@@ -4,14 +4,15 @@ import { readFile } from 'node:fs/promises';
 const manifest = await readFile(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
 const activity = await readFile(new URL('../android/app/src/main/java/io/github/maxhenneberg/trailbook/MainActivity.java', import.meta.url), 'utf8');
 const reader = await readFile(new URL('../android/app/src/main/java/io/github/maxhenneberg/trailbook/TrailbookIntentReader.java', import.meta.url), 'utf8');
+const policy = await readFile(new URL('../android/app/src/main/java/io/github/maxhenneberg/trailbook/TrailbookOpenPolicy.java', import.meta.url), 'utf8');
 const template = JSON.parse(await readFile(new URL('../android/dal/assetlinks.json.template', import.meta.url), 'utf8'));
 
 assert.match(manifest, /application\/vnd\.trailbook\.itinerary\+json/);
 assert.match(manifest, /application\/octet-stream/);
 assert.match(manifest, /application\/json/);
 assert.match(manifest, /android:scheme="content"/);
-assert.match(manifest, /android:pathPattern="\.\*\\\.trailbook"/);
-assert.equal(manifest.match(/android:host="\*"/g)?.length, 2);
+assert.equal(manifest.match(/android:scheme="content"/g)?.length, 3);
+assert.doesNotMatch(manifest, /android:(?:host|path|pathPattern|pathPrefix|pathSuffix)=/);
 assert.doesNotMatch(manifest, /android:mimeType="\*\/\*"/);
 assert.doesNotMatch(manifest, /android\.intent\.category\.BROWSABLE/);
 assert.doesNotMatch(manifest, /READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE/);
@@ -20,6 +21,9 @@ assert.match(activity, /setAllowContentAccess\(false\)/);
 assert.match(activity, /TRUSTED_HOST = "maxhenneberg\.github\.io"/);
 assert.match(reader, /openInputStream\(uri\)/);
 assert.doesNotMatch(reader, /getPath\(\)|new File\(/);
+assert.match(policy, /endsWith\("\.trailbook"\)/);
+assert.match(policy, /declaredSize > MAX_FILE_BYTES/);
+assert.match(policy, /ACCEPTED_MIME_TYPES\.contains\(type\)/);
 
 assert.equal(template.length, 1);
 assert.deepEqual(template[0].relation, ['delegate_permission/common.handle_all_urls']);

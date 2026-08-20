@@ -81,10 +81,12 @@ test('TA-TRAVEL-96-03 @pr keeps Android association targeted and Pages deploymen
   const workflow = await readFile(new URL('../../.github/workflows/android-package.yml', import.meta.url), 'utf8');
   const pages = await readFile(new URL('../../.github/workflows/pr-preview.yml', import.meta.url), 'utf8');
   const documentation = await readFile(new URL('../../docs/android-package.md', import.meta.url), 'utf8');
+  const policy = await readFile(new URL('../../android/app/src/main/java/io/github/maxhenneberg/trailbook/TrailbookOpenPolicy.java', import.meta.url), 'utf8');
   expect(manifest).toContain('application/vnd.trailbook.itinerary+json');
   expect(manifest).toContain('application/octet-stream');
   expect(manifest).toContain('android:scheme="content"');
-  expect(manifest.match(/android:host="\*"/g)).toHaveLength(2);
+  expect(manifest.match(/android:scheme="content"/g)).toHaveLength(3);
+  expect(manifest).not.toMatch(/android:(?:host|path|pathPattern|pathPrefix|pathSuffix)=/);
   expect(manifest).not.toContain('android:mimeType="*/*"');
   expect(manifest).not.toContain('android.intent.category.BROWSABLE');
   expect(manifest).not.toMatch(/READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE/);
@@ -92,4 +94,6 @@ test('TA-TRAVEL-96-03 @pr keeps Android association targeted and Pages deploymen
   expect(pages).not.toMatch(/gradle|android-sdk|keystore/i);
   expect(documentation).toContain('must not be described as a verified TWA');
   expect(documentation).toContain('https://maxhenneberg.github.io/.well-known/assetlinks.json');
+  expect(policy).toContain('endsWith(".trailbook")');
+  expect(policy).toContain('declaredSize > MAX_FILE_BYTES');
 });
