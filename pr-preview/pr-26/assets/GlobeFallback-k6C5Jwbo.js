@@ -1,0 +1,1 @@
+import{n as e,o as t}from"./index-C8S8Tsm1.js";var n=(e,t)=>{let n=e.__vccOpts||e;for(let[e,r]of t)n[e]=r;return n},r={},i={role:`status`};function a(n,r){return t(),e(`p`,i,` Interactive globe is not available in this Trailbook version. `)}var o=n(r,[[`render`,a]]);export{o as default};
