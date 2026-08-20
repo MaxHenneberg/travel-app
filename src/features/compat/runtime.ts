@@ -206,7 +206,7 @@ function transitDetails(transit) {
     ['Reservation', transit.reservation], ['Notes', transit.notes],
   ].filter(([, value]) => value);
   if (details.length) rows.push(`<dl class="transit-details">${details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>`);
-  if (transit.segments?.length) rows.push(`<ol class="transit-segments" aria-label="Transit segments">${transit.segments.map((segment) => `<li><strong>${escapeHtml(segment.mode)}</strong><span>${escapeHtml(segment.from.name)} → ${escapeHtml(segment.to.name)}</span><small>${escapeHtml([segment.departure && activityTime({ startsAt: segment.departure }), segment.arrival && activityTime({ startsAt: segment.arrival }), segment.operator, segment.service, segment.platform, segment.terminal].filter(Boolean).join(' · '))}</small>${segment.notes ? `<p>${escapeHtml(segment.notes)}</p>` : ''}</li>`).join('')}</ol>`);
+  if (transit.segments?.length) rows.push(`<ol class="transit-segments" aria-label="Transit segments">${transit.segments.map((segment) => `<li><div class="transit-segment-copy"><strong>${escapeHtml(segment.mode)}</strong><span>${escapeHtml(segment.from.name)} → ${escapeHtml(segment.to.name)}</span><small>${escapeHtml([segment.departure && activityTime({ startsAt: segment.departure }), segment.arrival && activityTime({ startsAt: segment.arrival }), segment.operator, segment.service, segment.platform, segment.terminal].filter(Boolean).join(' · '))}</small>${segment.notes ? `<p>${escapeHtml(segment.notes)}</p>` : ''}</div>${segmentMapActions(segment)}</li>`).join('')}</ol>`);
   return rows;
 }
 
@@ -225,14 +225,20 @@ function directionsUrl(from, to, mode) {
   try { return buildGoogleMapsRouteUrl([from, to], { travelMode: googleMapsMode(mode) }); } catch { return null; }
 }
 
-function transitMapActions(transit) {
-  const route = directionsUrl(transit.from, transit.to, transit.mode);
-  const segments = (transit.segments ?? []).map((segment) => {
-    const start = endpointMapUrl(segment.from);
-    const directions = directionsUrl(segment.from, segment.to, segment.mode);
-    return `<li>${start ? `<a class="button map-action" data-map-link href="${escapeHtml(start)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(segment.from.name)} in Google Maps">Map start</a>` : ''}${directions ? `<a class="button map-action" data-map-link href="${escapeHtml(directions)}" target="_blank" rel="noopener noreferrer" aria-label="Directions from ${escapeHtml(segment.from.name)} to ${escapeHtml(segment.to.name)}">Directions</a>` : ''}</li>`;
-  }).filter(Boolean);
-  return `${route ? `<a class="button map-action" data-map-link href="${escapeHtml(route)}" target="_blank" rel="noopener noreferrer" aria-label="Open itinerary directions from ${escapeHtml(transit.from.name)} to ${escapeHtml(transit.to.name)}">Itinerary directions ↗</a>` : ''}${segments.length ? `<ul class="transit-map-actions" aria-label="Segment map actions">${segments.join('')}</ul>` : ''}`;
+function mapIcon(kind) {
+  return kind === 'pin'
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"/><circle cx="12" cy="9" r="2.2"/></svg>'
+    : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h7l2 3h7M20 18h-7l-2-3H4"/><path d="m8 3-4 3 4 3M16 15l4 3-4 3"/></svg>';
+}
+
+function iconMapLink(url, label, icon) {
+  return url ? `<a class="icon-map-action" data-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${mapIcon(icon)}</a>` : '';
+}
+
+function segmentMapActions(segment) {
+  const start = iconMapLink(endpointMapUrl(segment.from), `Open ${segment.from.name} in Google Maps`, 'pin');
+  const directions = iconMapLink(directionsUrl(segment.from, segment.to, segment.mode), `Directions from ${segment.from.name} to ${segment.to.name}`, 'route');
+  return start || directions ? `<div class="transit-segment-actions" aria-label="Map actions for ${escapeHtml(segment.from.name)} to ${escapeHtml(segment.to.name)}">${start}${directions}</div>` : '';
 }
 
 function renderTransit(transit) {
@@ -241,11 +247,10 @@ function renderTransit(transit) {
   return `<article class="activity transit" data-transit-id="${escapeHtml(transit.id)}" data-testid="transit-item">
     <span class="timeline-node transit-node" aria-hidden="true"></span>
     <div class="activity-time">${time ? `<time datetime="${escapeHtml(transit.departure || '')}">${escapeHtml(time)}</time>` : '<span class="unscheduled">Travel</span>'}</div>
-    <div class="activity-card"><p class="activity-type">${escapeHtml(transit.mode)} transit</p><h3>${escapeHtml(transit.title)}</h3>
+    <div class="activity-card"><p class="activity-type">${escapeHtml(transit.mode)} transit</p><div class="transit-title-row"><h3>${escapeHtml(transit.title)}</h3>${iconMapLink(directionsUrl(transit.from, transit.to, transit.mode), `Open itinerary directions from ${transit.from.name} to ${transit.to.name}`, 'route')}</div>
       <p class="transit-route"><strong>${escapeHtml(transit.from.name)}</strong><span aria-hidden="true"> → </span><strong>${escapeHtml(transit.to.name)}</strong></p>
       ${timing ? `<div class="activity-summary"><span>${escapeHtml(timing)}</span></div>` : ''}
       ${details.length ? `<details open><summary aria-label="Transit details">Transit details</summary><div class="details-body">${details.join('')}</div></details>` : ''}
-      <div class="transit-actions">${transitMapActions(transit)}</div>
       ${attachmentPanel({ tripId: tripId(state.trip), type: 'transit', ownerId: transit.id }, 'Transit tickets', { accept: '.pdf,.pkpass,application/pdf,application/vnd.apple.pkpass' })}
     </div></article>`;
 }
