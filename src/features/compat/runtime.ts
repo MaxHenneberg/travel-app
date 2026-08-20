@@ -56,6 +56,9 @@ const tripId = (trip) => firstValue(trip?.id, trip?.trip?.id);
 const revision = (trip) => Number(firstValue(trip?.revision, trip?.trip?.revision, 1));
 const tripTitle = (trip) => firstValue(trip?.title, trip?.trip?.title, 'Untitled trip');
 const tripDays = (trip) => firstValue(trip?.days, trip?.trip?.days, []);
+// Published v1.1 keeps stop and transit entries in one deliberate timeline; old
+// bundled flat fixtures remain readable while users' v1.0 files are migrated.
+const dayItems = (day) => firstValue(day?.items, day?.activities, []);
 const tripSummary = (trip) => firstValue(trip?.summary, trip?.trip?.summary, '');
 const tripDestination = (trip) => firstValue(trip?.destination, 'Saved itinerary');
 
@@ -137,7 +140,7 @@ async function refreshAttachmentState() {
   const scopes = [{ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }];
   for (const day of tripDays(state.trip)) {
     scopes.push({ tripId: tripId(state.trip), type: 'day', ownerId: day.id });
-    for (const activity of day.activities ?? []) scopes.push({ tripId: tripId(state.trip), type: 'stop', ownerId: activity.id });
+    for (const activity of dayItems(day)) if (activity.type !== 'transit') scopes.push({ tripId: tripId(state.trip), type: 'stop', ownerId: activity.id });
   }
   try {
     const lists = await Promise.all(scopes.map((scope) => attachmentStore.list(scope)));
@@ -192,6 +195,34 @@ function renderActivity(activity) {
   </article>`;
 }
 
+function transitTime(transit) {
+  return activityTime({ startsAt: transit.departure, time: transit.time });
+}
+
+function transitDetails(transit) {
+  const rows = [];
+  const details = [
+    ['Operator', transit.operator], ['Service', transit.service], ['Platform', transit.platform], ['Terminal', transit.terminal],
+    ['Reservation', transit.reservation], ['Ticket', transit.ticketRef], ['Notes', transit.notes],
+  ].filter(([, value]) => value);
+  if (details.length) rows.push(`<dl class="transit-details">${details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>`);
+  if (transit.segments?.length) rows.push(`<ol class="transit-segments" aria-label="Transit segments">${transit.segments.map((segment) => `<li><strong>${escapeHtml(segment.mode)}</strong><span>${escapeHtml(segment.from.name)} → ${escapeHtml(segment.to.name)}</span><small>${escapeHtml([segment.departure && activityTime({ startsAt: segment.departure }), segment.arrival && activityTime({ startsAt: segment.arrival }), segment.operator, segment.service, segment.platform, segment.terminal].filter(Boolean).join(' · '))}</small>${segment.notes ? `<p>${escapeHtml(segment.notes)}</p>` : ''}</li>`).join('')}</ol>`);
+  return rows;
+}
+
+function renderTransit(transit) {
+  const time = transitTime(transit); const details = transitDetails(transit);
+  const timing = [transit.departure && activityTime({ startsAt: transit.departure }), transit.arrival && activityTime({ startsAt: transit.arrival }), transit.duration].filter(Boolean).join(' · ');
+  return `<article class="activity transit" data-transit-id="${escapeHtml(transit.id)}" data-testid="transit-item">
+    <span class="timeline-node transit-node" aria-hidden="true"></span>
+    <div class="activity-time">${time ? `<time datetime="${escapeHtml(transit.departure || '')}">${escapeHtml(time)}</time>` : '<span class="unscheduled">Travel</span>'}</div>
+    <div class="activity-card"><p class="activity-type">${escapeHtml(transit.mode)} transit</p><h3>${escapeHtml(transit.title)}</h3>
+      <p class="transit-route"><strong>${escapeHtml(transit.from.name)}</strong><span aria-hidden="true"> → </span><strong>${escapeHtml(transit.to.name)}</strong></p>
+      ${timing ? `<div class="activity-summary"><span>${escapeHtml(timing)}</span></div>` : ''}
+      ${details.length ? `<details open><summary aria-label="Transit details">Transit details</summary><div class="details-body">${details.join('')}</div></details>` : ''}
+    </div></article>`;
+}
+
 function tripHash(trip, dayId = null) {
   return buildHashRoute({ tripId: tripId(trip), revision: revision(trip), dayId });
 }
@@ -219,8 +250,8 @@ function tripCard(trip, { removable = true } = {}) {
 }
 
 function schemaExportLink(className = 'button ghost') {
-  const url = new URL('data/schemas/itinerary.v1.schema.json', baseUrl).href;
-  return `<a class="${className}" data-schema-export href="${escapeHtml(url)}" download="trailbook-itinerary-schema-v1.json">Export JSON schema</a>`;
+  const url = new URL('data/schemas/itinerary.v1.1.schema.json', baseUrl).href;
+  return `<a class="${className}" data-schema-export href="${escapeHtml(url)}" download="trailbook-itinerary-schema-v1.1.json">Export JSON schema</a>`;
 }
 
 function kasumiMarkup() {
@@ -326,10 +357,10 @@ function mapRouteMarkup() {
   const days = tripDays(state.trip);
   const day = currentDay();
   if (!day) return `<section class="route-view" aria-labelledby="route-title"><header><p class="eyebrow">${escapeHtml(tripTitle(state.trip))}</p><h2 id="route-title" aria-label="Map-Route">Route</h2><p>Choose a day</p></header><div class="route-day-list">${days.map((item, index) => {
-    const count = (item.activities ?? []).filter(activityLocation).length;
+    const count = dayItems(item).filter((activity) => activity.type !== 'transit' && activityLocation(activity)).length;
     return `<a href="${escapeHtml(tripHash(state.trip, item.id))}" data-route-day><span>Day ${index + 1}</span><strong>${escapeHtml(item.title || item.date)}</strong><small>${count} ${count === 1 ? 'stop' : 'stops'}</small></a>`;
   }).join('')}</div></section>`;
-  const stops = (day.activities ?? []).filter(activityLocation);
+  const stops = dayItems(day).filter((activity) => activity.type !== 'transit' && activityLocation(activity));
   return `<section class="route-view" aria-labelledby="route-title"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} route</h2><p>Available offline</p></header>${stops.length ? `<ol class="route-stop-list" aria-label="Ordered map route">${stops.map(routeStopMarkup).join('')}</ol>` : '<div class="empty-route"><strong>No mapped stops</strong></div>'}</section>`;
 }
 
@@ -384,7 +415,7 @@ async function renderCollection(savedTrips) {
 }
 
 function dayPreview(day) {
-  const activities = day.activities ?? [];
+  const activities = dayItems(day);
   return `<li><a class="overview-day-card" href="${escapeHtml(tripHash(state.trip, day.id))}">
     <div><time>${escapeHtml(day.date)}</time><h3>${escapeHtml(day.title || day.date)}</h3>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}</div>
     ${activities.length ? `<ol class="activity-preview" aria-label="Activities">${activities.slice(0, 3).map((activity) => `<li>${escapeHtml(activityTime(activity) || 'Any time')} · ${escapeHtml(activity.title)}</li>`).join('')}</ol>` : '<p class="day-empty" aria-label="No activities planned for this day">No plans</p>'}
@@ -423,7 +454,7 @@ async function renderTrip(savedTrips) {
           <header class="day-heading"><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">← Trip overview</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 data-testid="selected-day-title">${escapeHtml(day.title || day.date)}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
           </header>
           ${attachmentPanel({ tripId: tripId(state.trip), type: 'day', ownerId: day.id }, 'Day documents')}
-          ${(day.activities ?? []).length ? `<div class="timeline"><span class="timeline-spine" aria-hidden="true"></span>${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No plans yet</strong></div>'}
+          ${dayItems(day).length ? `<div class="timeline"><span class="timeline-spine" aria-hidden="true"></span>${dayItems(day).map((item) => item.type === 'transit' ? renderTransit(item) : renderActivity(item)).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No plans yet</strong></div>'}
         </article>` : `<article class="trip-overview" data-testid="trip-overview">
           <header><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day</p>'}</header>
           ${attachmentPanel({ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }, 'Trip documents')}
@@ -956,7 +987,7 @@ async function hydrateStopPictures() {
 
 async function loadPublished(target) {
   const assetUrl = new URL(`data/itineraries/${target.id}/v${target.revision}.json`, baseUrl);
-  const schemaUrl = new URL('data/schemas/itinerary.v1.schema.json', baseUrl);
+  const schemaUrl = new URL('data/schemas/itinerary.v1.1.schema.json', baseUrl);
   const [schemaResponse, response] = await Promise.all([fetch(schemaUrl), fetch(assetUrl)]);
   if (!schemaResponse.ok) throw new Error(`The itinerary schema could not be loaded (${schemaResponse.status}).`);
   if (!response.ok) throw new Error(response.status === 404 ? 'This itinerary revision has not been published.' : `The itinerary could not be loaded (${response.status}).`);
@@ -1068,7 +1099,7 @@ function shareTargetMarkup() {
       non_json: 'The shared file was not a JSON itinerary.',
       invalid_json: 'The shared itinerary contained malformed JSON.',
       unsupported_schema: 'The shared itinerary uses an unsupported schema version.',
-      invalid_schema: 'The shared itinerary does not match the supported v1 contract.',
+      invalid_schema: 'The shared itinerary does not match the supported v1.1 contract.',
       active_content: 'The shared itinerary contained active or unsafe content.',
       unavailable: 'This pending import is already being reviewed or has expired.',
     };
@@ -1093,6 +1124,6 @@ function shareTargetMarkup() {
       <label><input type="radio" name="share-conflict" value="duplicate"> Keep both with a new local trip ID</label>
     </fieldset>` : ''}
     <div class="share-import-actions"><button class="button primary" id="confirm-shared-file" type="button">${current.conflict ? 'Continue with selection' : 'Import and open trip'}</button><button class="button subtle" id="cancel-shared-file" type="button">Cancel import</button></div>
-    <p class="share-import-trace" role="status">Validated locally against supported schema v1. Nothing is uploaded.</p>
+    <p class="share-import-trace" role="status">Validated locally against supported schema v1.1. Nothing is uploaded.</p>
   </section>`;
 }

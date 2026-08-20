@@ -19,6 +19,10 @@ addFormats(ajv);
 const validateCanonical = ajv.compile(schema);
 const canonical = await json('data/itineraries/example.v1.json');
 assert(validateCanonical(canonical), `example.v1.json violates itinerary.v1.schema.json: ${ajv.errorsText(validateCanonical.errors)}`);
+const schemaV11 = await json('data/schemas/itinerary.v1.1.schema.json');
+const validateV11 = ajv.compile(schemaV11);
+const canonicalV11 = await json('data/itineraries/example.v1.1.json');
+assert(validateV11(canonicalV11), `example.v1.1.json violates itinerary.v1.1.schema.json: ${ajv.errorsText(validateV11.errors)}`);
 
 const index = await json('data/itineraries/index.json');
 assert(index.schemaVersion === 1 && Array.isArray(index.itineraries), 'itinerary index must use schemaVersion 1 and contain an itineraries array');

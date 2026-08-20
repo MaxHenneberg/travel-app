@@ -42,7 +42,7 @@ export function deriveVisitedCountries(itinerary) {
   const trip = itinerary?.trip ?? itinerary;
   const periods = new Map();
   for (const day of trip?.days ?? []) {
-    const activities = day.activities?.length ? day.activities : [null];
+    const activities = (day.items ?? day.activities)?.length ? (day.items ?? day.activities).filter((item) => item.type !== 'transit') : [null];
     for (const activity of activities) {
       const candidate = countryCandidate(trip, day, activity);
       if (!candidate) continue;

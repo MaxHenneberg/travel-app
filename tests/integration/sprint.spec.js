@@ -252,25 +252,25 @@ test('TA-TRAVEL-60-01 @pr exports the supported schema from every import surface
 
   const collectionExport = page.getByRole('link', { name: 'Export JSON schema' });
   const collectionHref = await collectionExport.getAttribute('href');
-  expect(new URL(collectionHref).pathname).toBe(`${repositoryPath}data/schemas/itinerary.v1.schema.json`);
-  await expect(collectionExport).toHaveAttribute('download', 'trailbook-itinerary-schema-v1.json');
+  expect(new URL(collectionHref).pathname).toBe(`${repositoryPath}data/schemas/itinerary.v1.1.schema.json`);
+  await expect(collectionExport).toHaveAttribute('download', 'trailbook-itinerary-schema-v1.1.json');
 
   const downloadPromise = page.waitForEvent('download');
   await collectionExport.click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('trailbook-itinerary-schema-v1.json');
+  expect(download.suggestedFilename()).toBe('trailbook-itinerary-schema-v1.1.json');
 
   const schemaResponse = await page.request.get(collectionHref);
   expect(schemaResponse.ok()).toBeTruthy();
   const schema = await schemaResponse.json();
   expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
-  expect(schema.properties.schemaVersion.const).toBe('1.0.0');
+  expect(schema.properties.schemaVersion.const).toBe('1.1.0');
 
   await openSample(page, '');
   await openAppMenu(page);
   const itineraryExport = page.getByRole('link', { name: 'Export JSON schema' });
   await expect(itineraryExport).toHaveAttribute('href', collectionHref);
-  await expect(itineraryExport).toHaveAttribute('download', 'trailbook-itinerary-schema-v1.json');
+  await expect(itineraryExport).toHaveAttribute('download', 'trailbook-itinerary-schema-v1.1.json');
 
   const viewportFits = await page.evaluate(() => ({
     document: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
@@ -310,7 +310,7 @@ test('TA-TRAVEL-60-02 @pr keeps invalid-import feedback complete, private, copya
   });
 
   const repairMessage = page.getByLabel('Copyable itinerary repair message');
-  await expect(repairMessage).toContainText('Supported schema version: 1.0.0');
+  await expect(repairMessage).toContainText('Supported schema version: 1.1.0');
   await expect(repairMessage).toContainText('Return only the complete corrected JSON');
   for (const issue of ['/privatePayload [unknown_property]', '/trip/id [required_string]', '/trip/title [required_string]', '/trip/startDate [invalid_date]', '/trip/timeZone [required_string]', '/trip/days [invalid_type]']) {
     await expect(repairMessage).toContainText(issue);

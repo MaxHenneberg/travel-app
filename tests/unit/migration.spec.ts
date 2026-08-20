@@ -18,7 +18,7 @@ beforeAll(() => {
 beforeEach(() => setActivePinia(createPinia()));
 
 describe('Vue migration boundaries', () => {
-  it('keeps the schema-v1 boundary explicit', () => expect(SCHEMA_VERSION).toBe('1.0.0'));
+  it('keeps the schema-v1.1 boundary explicit', () => expect(SCHEMA_VERSION).toBe('1.1.0'));
 
   it('renders the truthful globe fallback as a component', () => {
     expect(mount(GlobeFallback).get('[role="status"]').text()).toContain('not available');

@@ -50,7 +50,7 @@ test('TA-TRAVEL-5-03 @pr @post-deploy fetches catalog, schema, and fixture benea
   expect(paths).toEqual(expect.arrayContaining([
     `${repositoryPath}data/itineraries/index.json`,
     `${repositoryPath}data/itineraries/weekend-lisbon/v1.json`,
-    `${repositoryPath}data/schemas/itinerary.v1.schema.json`,
+    `${repositoryPath}data/schemas/itinerary.v1.1.schema.json`,
   ]));
   for (const response of responses) expect(response.ok(), response.url()).toBeTruthy();
 });

@@ -89,9 +89,9 @@ test('TA-TRAVEL-94-01 @pr @post-deploy exports one schema-valid portable itinera
   const shared = await captureNativeShare(page);
   expect(shared.name).toBe('Kyoto-Autumn-2026.trailbook');
   expect(shared.type).toBe('application/vnd.trailbook.itinerary+json');
-  expect(JSON.parse(shared.text)).toEqual(fixture);
+  expect(JSON.parse(shared.text).schemaVersion).toBe('1.1.0');
   expect(JSON.parse(shared.text).trip.days.map(({ id }) => id)).toEqual(['arrival-stable', 'open-day-stable']);
-  expect(JSON.parse(shared.text).trip.days[0].activities[0].id).toBe('temple-stable');
+  expect(JSON.parse(shared.text).trip.days[0].items[0].id).toBe('temple-stable');
 
   await page.goto('./');
   page.once('dialog', (dialog) => dialog.accept());

@@ -289,6 +289,18 @@ h1 { max-width: 850px; margin: 0; font-size: clamp(2.35rem, 6vw, 5rem); line-hei
 .timeline-node { position: absolute; z-index: 2; top: 1.25rem; left: calc(var(--timeline-time-column) + (var(--timeline-gap) / 2)); width: var(--timeline-node-size); height: var(--timeline-node-size); border: 3px solid var(--color-background); border-radius: 50%; background: var(--amber); transform: translateX(-50%); }
 .activity-type { margin: 0 0 .35rem; color: var(--color-accent); font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .activity-card h3 { overflow-wrap: anywhere; margin: 0; font-size: 1.08rem; letter-spacing: -.02em; }
+.transit { --timeline-node-size: .84rem; }
+.transit-node { border-radius: .2rem; background: var(--color-primary); }
+.transit-route { display: flex; flex-wrap: wrap; gap: .35rem; margin: .65rem 0 0; color: var(--color-text); overflow-wrap: anywhere; }
+.transit-route span { color: var(--color-primary); font-weight: 800; }
+.transit-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .65rem 1rem; margin: 0; }
+.transit-details div { min-width: 0; }
+.transit-details dt { color: var(--muted); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.transit-details dd { overflow-wrap: anywhere; margin: .18rem 0 0; }
+.transit-segments { display: grid; gap: .65rem; padding: 0; margin: .85rem 0 0; list-style: none; }
+.transit-segments li { display: grid; gap: .15rem; padding: .75rem; border-left: 2px solid var(--color-divider); background: color-mix(in srgb, var(--color-surface) 80%, transparent); }
+.transit-segments span, .transit-segments small { overflow-wrap: anywhere; color: var(--muted); }
+.transit-segments p { margin: .3rem 0 0; }
 .stop-picture { margin: .85rem 0 0; }
 .stop-picture-frame { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border-radius: .75rem; background: #e8ece8; }
 .stop-picture-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
