@@ -1,4 +1,6 @@
-export const ITINERARY_SCHEMA_VERSION = '1.0.0';
+export const ITINERARY_SCHEMA_VERSION = '1.1.0';
+export const LEGACY_ITINERARY_SCHEMA_VERSION = '1.0.0';
+export const TRANSIT_MODES = new Set(['walk', 'bicycle', 'car', 'taxi', 'bus', 'tram', 'metro', 'subway', 'train', 'ferry', 'flight', 'other']);
 
 export class ItineraryValidationError extends TypeError {
   constructor(errors) {
@@ -75,14 +77,13 @@ function validateActivity(activity, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with an activity object.`));
     return;
   }
-  rejectUnknownProperties(activity, new Set(['id', 'title', 'startsAt', 'endsAt', 'category', 'location', 'notes']), path, errors);
+  rejectUnknownProperties(activity, new Set(['id', 'type', 'title', 'startsAt', 'endsAt', 'category', 'location', 'notes', 'description', 'duration', 'reservation', 'cost', 'links']), path, errors);
   requiredString(activity.id, `${path}/id`, errors);
+  if (activity.type !== undefined && activity.type !== 'stop') errors.push(issue(`${path}/type`, 'invalid_discriminator', 'must be "stop" for a destination.', 'Set type to stop.'));
   requiredString(activity.title, `${path}/title`, errors);
   requiredDateTime(activity.startsAt, `${path}/startsAt`, errors);
   if (activity.endsAt !== undefined) requiredDateTime(activity.endsAt, `${path}/endsAt`, errors);
-  optionalString(activity.category, `${path}/category`, errors);
-  optionalString(activity.location, `${path}/location`, errors);
-  optionalString(activity.notes, `${path}/notes`, errors);
+  for (const field of ['category', 'location', 'notes', 'description', 'duration', 'reservation']) optionalString(activity[field], `${path}/${field}`, errors);
 
   if (typeof activity.startsAt === 'string' && typeof activity.endsAt === 'string'
       && !Number.isNaN(Date.parse(activity.startsAt)) && !Number.isNaN(Date.parse(activity.endsAt))
@@ -96,16 +97,54 @@ function validateDay(day, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with a day object.`));
     return;
   }
-  rejectUnknownProperties(day, new Set(['id', 'date', 'title', 'activities']), path, errors);
+  rejectUnknownProperties(day, new Set(['id', 'date', 'title', 'items', 'activities']), path, errors);
   requiredString(day.id, `${path}/id`, errors);
   requiredDate(day.date, `${path}/date`, errors);
   optionalString(day.title, `${path}/title`, errors);
-  if (!Array.isArray(day.activities)) {
-    errors.push(issue(`${path}/activities`, 'invalid_type', 'must be an array.', 'Use an empty array when the day has no activities.'));
+  const items = day.items ?? day.activities;
+  const itemKey = day.items ? 'items' : 'activities';
+  if (!Array.isArray(items)) {
+    errors.push(issue(`${path}/${itemKey}`, 'invalid_type', 'must be an array.', 'Use an empty array when the day has no itinerary items.'));
     return;
   }
-  duplicateIds(day.activities, `${path}/activities`, errors);
-  day.activities.forEach((activity, index) => validateActivity(activity, `${path}/activities/${index}`, errors));
+  duplicateIds(items, `${path}/${itemKey}`, errors);
+  items.forEach((item, index) => itemKey === 'activities'
+    ? validateActivity(item, `${path}/${itemKey}/${index}`, errors)
+    : validateTimelineItem(item, `${path}/${itemKey}/${index}`, errors, items));
+}
+
+function validateTransitEndpoint(value, path, errors, itemIds) {
+  if (typeof value === 'string') {
+    if (!itemIds.has(value)) errors.push(issue(path, 'invalid_reference', `references unknown stop id "${value}".`, 'Reference a stop in the same day or provide a location object.'));
+    return;
+  }
+  validateFlatLocation(value, path, errors);
+}
+
+function validateTransitSegment(segment, path, errors) {
+  if (!isRecord(segment)) { errors.push(issue(path, 'invalid_type', 'must be an object.', 'Use a segment object.')); return; }
+  rejectUnknownProperties(segment, new Set(['id', 'mode', 'departure', 'arrival', 'duration', 'provider', 'operator', 'service', 'line', 'platform', 'gate', 'terminal', 'notes', 'instructions', 'reservation', 'ticket']), path, errors);
+  requiredString(segment.mode, `${path}/mode`, errors);
+  if (typeof segment.mode === 'string' && !TRANSIT_MODES.has(segment.mode)) errors.push(issue(`${path}/mode`, 'unsupported_mode', 'must be a supported transit mode.', `Use one of: ${[...TRANSIT_MODES].join(', ')}.`));
+  for (const field of ['id', 'departure', 'arrival', 'duration', 'provider', 'operator', 'service', 'line', 'platform', 'gate', 'terminal', 'notes', 'instructions', 'reservation', 'ticket']) optionalString(segment[field], `${path}/${field}`, errors);
+}
+
+function validateTimelineItem(item, path, errors, items) {
+  if (!isRecord(item)) { errors.push(issue(path, 'invalid_type', 'must be an object.', 'Use a stop or transit item object.')); return; }
+  requiredString(item.id, `${path}/id`, errors);
+  if (item.type === 'stop') { validateActivity(item, path, errors); return; }
+  if (item.type !== 'transit') { errors.push(issue(`${path}/type`, 'invalid_discriminator', 'must be "stop" or "transit".', 'Set type to stop for a destination or transit for a journey.')); return; }
+  rejectUnknownProperties(item, new Set(['id', 'type', 'from', 'to', 'mode', 'departure', 'arrival', 'duration', 'provider', 'operator', 'service', 'line', 'platform', 'gate', 'terminal', 'notes', 'instructions', 'reservation', 'ticket', 'segments']), path, errors);
+  const itemIds = new Set(items.filter((candidate) => candidate?.type === 'stop').map((candidate) => candidate.id));
+  validateTransitEndpoint(item.from, `${path}/from`, errors, itemIds);
+  validateTransitEndpoint(item.to, `${path}/to`, errors, itemIds);
+  requiredString(item.mode, `${path}/mode`, errors);
+  if (typeof item.mode === 'string' && !TRANSIT_MODES.has(item.mode)) errors.push(issue(`${path}/mode`, 'unsupported_mode', 'must be a supported transit mode.', `Use one of: ${[...TRANSIT_MODES].join(', ')}.`));
+  for (const field of ['departure', 'arrival', 'duration', 'provider', 'operator', 'service', 'line', 'platform', 'gate', 'terminal', 'notes', 'instructions', 'reservation', 'ticket']) optionalString(item[field], `${path}/${field}`, errors);
+  if (item.segments !== undefined) {
+    if (!Array.isArray(item.segments) || item.segments.length === 0) errors.push(issue(`${path}/segments`, 'invalid_segments', 'must be a non-empty array when provided.', 'Provide each ordered transfer segment.'));
+    else item.segments.forEach((segment, index) => validateTransitSegment(segment, `${path}/segments/${index}`, errors));
+  }
 }
 
 function validateFlatLocation(location, path, errors) {
@@ -229,7 +268,7 @@ export function inspectItinerary(value, { supportedVersion = ITINERARY_SCHEMA_VE
 
   rejectUnknownProperties(value, new Set(['schemaVersion', 'trip']), '', errors);
 
-  if (value.schemaVersion !== supportedVersion) {
+  if (value.schemaVersion !== supportedVersion && value.schemaVersion !== LEGACY_ITINERARY_SCHEMA_VERSION) {
     errors.push(issue('/schemaVersion', 'unsupported_version', `must be "${supportedVersion}"; received ${JSON.stringify(value.schemaVersion)}.`, `Export or migrate this itinerary to schema version ${supportedVersion}.`));
   }
   if (!isRecord(value.trip)) {
@@ -264,6 +303,18 @@ export function inspectItinerary(value, { supportedVersion = ITINERARY_SCHEMA_VE
   return { valid: errors.length === 0, errors };
 }
 
+/** Converts the published 1.0 activity list into the 1.1 ordered item model without losing fields or local date strings. */
+export function migrateItinerary(value) {
+  if (!isRecord(value) || value.schemaVersion !== LEGACY_ITINERARY_SCHEMA_VERSION || !isRecord(value.trip)) return value;
+  const migrated = structuredClone(value);
+  migrated.schemaVersion = ITINERARY_SCHEMA_VERSION;
+  migrated.trip.days = migrated.trip.days.map((day) => {
+    const { activities = [], ...rest } = day;
+    return { ...rest, items: activities.map((activity) => ({ ...activity, type: 'stop' })) };
+  });
+  return migrated;
+}
+
 export function validateItinerary(value, options) {
   const result = inspectItinerary(value, options);
   if (!result.valid) throw new ItineraryValidationError(result.errors);
@@ -277,5 +328,6 @@ export function parseItinerary(json, options) {
   } catch (cause) {
     throw new ItineraryValidationError(issue('$', 'invalid_json', `contains invalid JSON (${cause.message}).`, 'Fix the JSON syntax and try again.'));
   }
-  return validateItinerary(value, options);
+  validateItinerary(value, options);
+  return migrateItinerary(value);
 }

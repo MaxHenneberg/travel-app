@@ -12,7 +12,7 @@ test('accepts the bundled v1 fixture and omitted optional fields', () => {
   const minimal = structuredClone(fixture);
   delete minimal.trip.summary;
   delete minimal.trip.days[0].title;
-  delete minimal.trip.days[0].activities[0].category;
+  delete minimal.trip.days[0].items[0].category;
   assert.equal(validateItinerary(minimal, schema), minimal);
 });
 
@@ -41,8 +41,20 @@ test('rejects unsupported versions before schema validation', () => {
     () => validateItinerary(incompatible, schema),
     (error) => error.code === 'UNSUPPORTED_SCHEMA_VERSION'
       && error.path === '/schemaVersion'
-      && error.message.includes('expected 1.0.0, received 2.0.0'),
+      && error.message.includes('expected 1.1.0, received 2.0.0'),
   );
+});
+
+test('migrates v1 activities losslessly and validates an ordered multi-segment transit leg', () => {
+  const legacy = { schemaVersion: '1.0.0', trip: { id: 'legacy', title: 'Legacy', startDate: '2026-09-18', endDate: '2026-09-18', timeZone: 'Europe/Berlin', days: [{ id: 'day', date: '2026-09-18', activities: [{ id: 'a', title: 'Breakfast', startsAt: '2026-09-18T08:00:00+02:00', notes: 'Keep me' }] }] } };
+  const migrated = validateItinerary(legacy, schema);
+  assert.equal(migrated.schemaVersion, '1.1.0');
+  assert.deepEqual(migrated.trip.days[0].items[0], { id: 'a', type: 'stop', title: 'Breakfast', startsAt: '2026-09-18T08:00:00+02:00', notes: 'Keep me' });
+  const transit = structuredClone(fixture);
+  transit.trip.days[0].items.push({ id: 'rail', type: 'transit', from: 'check-in', to: { name: 'Central Station' }, mode: 'train', duration: '42 min', segments: [{ mode: 'walk', duration: '5 min' }, { mode: 'train', line: 'ICE 42', platform: '7' }] });
+  assert.equal(validateItinerary(transit, schema), transit);
+  transit.trip.days[0].items[2].segments[1].mode = 'teleport';
+  assert.throws(() => validateItinerary(transit, schema), (error) => error.path === '/trip/days/0/items/2/segments/1/mode');
 });
 
 test('loads schema and itinerary from URLs scoped to the repository base path', async () => {

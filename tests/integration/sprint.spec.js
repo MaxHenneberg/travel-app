@@ -12,6 +12,16 @@ const canonicalTrip = {
     days: [{ id: 'canonical-day', date: '2026-10-03', activities: [{ id: 'gallery', title: 'Evening gallery', startsAt: '2026-10-03T18:30:00+02:00' }] }],
   },
 };
+const transitTrip = {
+  schemaVersion: '1.1.0', trip: {
+    id: 'transit-break', title: 'Transit break', startDate: '2026-10-03', endDate: '2026-10-03', timeZone: 'Europe/Paris',
+    days: [{ id: 'journey-day', date: '2026-10-03', items: [
+      { id: 'hotel', type: 'stop', title: 'Hotel', startsAt: '2026-10-03T08:00:00+02:00', location: 'Hotel' },
+      { id: 'journey', type: 'transit', from: 'hotel', to: { name: 'Museum' }, mode: 'train', departure: '08:20', arrival: '09:02', duration: '42 min', provider: 'SNCF', segments: [{ mode: 'walk', duration: '5 min' }, { mode: 'train', line: 'RER B', platform: '4' }] },
+      { id: 'museum', type: 'stop', title: 'Museum', startsAt: '2026-10-03T09:15:00+02:00', location: 'Museum' },
+    ] }],
+  },
+};
 
 function onlyProject(testInfo, ...profiles) {
   test.skip(!profiles.includes(testInfo.project.name), `Runs on ${profiles.join(', ')}`);
@@ -29,6 +39,23 @@ async function prepareOffline(page, context, heading = 'A long weekend in Lisbon
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
 }
+
+test('TA-TRAVEL-116-01 @pr renders a responsive ordered transit leg without turning transfers into activities', async ({ page }, testInfo) => {
+  onlyProject(testInfo, 'chromium', 'android-chrome');
+  await page.goto('./');
+  await page.locator('#trip-import').setInputFiles({ name: 'transit.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(transitTrip)) });
+  await expect(page.getByRole('heading', { name: 'Transit break' })).toBeVisible();
+  await page.goto('./#/trip/transit-break/v/1/day/journey-day');
+  const leg = page.getByTestId('transit-leg');
+  await expect(leg).toContainText('Hotel');
+  await expect(leg).toContainText('Museum');
+  await expect(leg).toContainText('42 min');
+  await expect(page.getByTestId('activity-item')).toHaveCount(2);
+  await leg.locator('summary').click();
+  await expect(leg).toContainText('RER B');
+  const box = await leg.boundingBox();
+  expect(box.width).toBeGreaterThan(200);
+});
 
 test('TA-TRAVEL-7-01 @pr renders activity, timing, transport, and practical details', async ({ page }, testInfo) => {
   onlyProject(testInfo, 'android-chrome');
@@ -257,7 +284,7 @@ test('TA-TRAVEL-60-01 @pr exports the supported schema from every import surface
   expect(schemaResponse.ok()).toBeTruthy();
   const schema = await schemaResponse.json();
   expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
-  expect(schema.properties.schemaVersion.const).toBe('1.0.0');
+  expect(schema.properties.schemaVersion.const).toBe('1.1.0');
 
   await openSample(page, '');
   const itineraryExport = page.getByRole('link', { name: 'Export JSON schema' });
@@ -302,7 +329,7 @@ test('TA-TRAVEL-60-02 @pr keeps invalid-import feedback complete, private, copya
   });
 
   const repairMessage = page.getByLabel('Copyable itinerary repair message');
-  await expect(repairMessage).toContainText('Supported schema version: 1.0.0');
+  await expect(repairMessage).toContainText('Supported schema version: 1.1.0');
   await expect(repairMessage).toContainText('Return only the complete corrected JSON');
   for (const issue of ['/privatePayload [unknown_property]', '/trip/id [required_string]', '/trip/title [required_string]', '/trip/startDate [invalid_date]', '/trip/timeZone [required_string]', '/trip/days [invalid_type]']) {
     await expect(repairMessage).toContainText(issue);

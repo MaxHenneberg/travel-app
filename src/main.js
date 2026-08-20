@@ -1,5 +1,5 @@
 import './style.css';
-import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from './lib/itinerary.js';
+import { ITINERARY_SCHEMA_VERSION, migrateItinerary, parseItinerary, validateItinerary } from './lib/itinerary.js';
 import { buildHashRoute, tryParseHashRoute } from './lib/hash-route.js';
 import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrls } from './lib/google-maps.js';
 import { createTripStore } from './lib/trip-store.js';
@@ -20,6 +20,7 @@ const tripId = (trip) => firstValue(trip?.id, trip?.trip?.id);
 const revision = (trip) => Number(firstValue(trip?.revision, trip?.trip?.revision, 1));
 const tripTitle = (trip) => firstValue(trip?.title, trip?.trip?.title, 'Untitled trip');
 const tripDays = (trip) => firstValue(trip?.days, trip?.trip?.days, []);
+const dayItems = (day) => firstValue(day?.items, day?.activities, []);
 const tripSummary = (trip) => firstValue(trip?.summary, trip?.trip?.summary, '');
 const tripDestination = (trip) => firstValue(trip?.destination, 'Saved itinerary');
 
@@ -100,8 +101,33 @@ function renderActivity(activity) {
   </article>`;
 }
 
+function endpointLabel(endpoint, items) {
+  if (typeof endpoint === 'string') return items.find((item) => item.id === endpoint)?.title || endpoint;
+  return endpoint?.name || endpoint?.address || endpoint?.placeId || 'Location';
+}
+
+function transitMeta(leg) {
+  return [leg.duration, leg.departure && `Dep ${leg.departure}`, leg.arrival && `Arr ${leg.arrival}`, leg.platform && `Platform ${leg.platform}`, leg.gate && `Gate ${leg.gate}`, leg.terminal && `Terminal ${leg.terminal}`].filter(Boolean);
+}
+
+function renderTransit(leg, items) {
+  const from = endpointLabel(leg.from, items); const to = endpointLabel(leg.to, items);
+  const segments = leg.segments ?? [];
+  const details = [leg.provider || leg.operator, leg.service || leg.line, leg.notes || leg.instructions, leg.reservation || leg.ticket].filter(Boolean);
+  return `<article class="transit-leg" data-transit-id="${escapeHtml(leg.id)}" data-testid="transit-leg" aria-label="Journey from ${escapeHtml(from)} to ${escapeHtml(to)}">
+    <div class="transit-rail" aria-hidden="true"><span></span></div>
+    <div class="transit-card">
+      <div class="transit-heading"><p class="transit-mode">${escapeHtml(leg.mode)}</p><span class="transit-duration">${escapeHtml(leg.duration || 'Journey')}</span></div>
+      <div class="transit-route"><strong>${escapeHtml(from)}</strong><span aria-hidden="true">→</span><strong>${escapeHtml(to)}</strong></div>
+      ${transitMeta(leg).length ? `<div class="transit-meta">${transitMeta(leg).map((value) => `<span>${escapeHtml(value)}</span>`).join('')}</div>` : ''}
+      ${segments.length ? `<details class="transit-segments"><summary>${segments.length} ${segments.length === 1 ? 'segment' : 'segments'} · journey details</summary><ol>${segments.map((segment) => `<li><strong>${escapeHtml(segment.mode)}</strong>${segment.line || segment.service ? ` · ${escapeHtml(segment.line || segment.service)}` : ''}${segment.departure ? ` · ${escapeHtml(segment.departure)}` : ''}${segment.arrival ? ` → ${escapeHtml(segment.arrival)}` : ''}${segment.platform ? ` · Platform ${escapeHtml(segment.platform)}` : ''}</li>`).join('')}</ol></details>` : ''}
+      ${details.length ? `<p class="transit-notes">${escapeHtml(details.join(' · '))}</p>` : ''}
+    </div>
+  </article>`;
+}
+
 function routeUrls(day) {
-  const stops = (day?.activities ?? []).map(activityLocation).filter(Boolean);
+  const stops = dayItems(day).filter((item) => item.type !== 'transit').map(activityLocation).filter(Boolean);
   try { return buildGoogleMapsRouteUrls(stops, { travelMode: 'walking' }); } catch { return []; }
 }
 
@@ -173,7 +199,7 @@ async function renderCollection(savedTrips) {
 }
 
 function dayPreview(day) {
-  const activities = day.activities ?? [];
+  const activities = dayItems(day).filter((item) => item.type !== 'transit');
   return `<li><a class="overview-day-card" href="${escapeHtml(tripHash(state.trip, day.id))}">
     <div><time>${escapeHtml(day.date)}</time><h3>${escapeHtml(day.title || day.date)}</h3>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}</div>
     ${activities.length ? `<ol class="activity-preview" aria-label="Activities">${activities.slice(0, 3).map((activity) => `<li>${escapeHtml(activityTime(activity) || 'Any time')} · ${escapeHtml(activity.title)}</li>`).join('')}</ol>` : '<p class="day-empty">No activities planned for this day.</p>'}
@@ -212,7 +238,7 @@ async function renderTrip(savedTrips) {
           <header class="day-heading"><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">← Trip overview</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 data-testid="selected-day-title">${escapeHtml(day.title || day.date)}</h2>${day.summary ? `<p>${escapeHtml(day.summary)}</p>` : ''}
             ${routes.length ? `<div class="day-toolbar">${routes.map((url, index) => `<a class="button subtle" data-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${routes.length > 1 ? `Route part ${index + 1}` : 'Open day route'} ↗</a>`).join('')}</div>` : ''}
           </header>
-          ${(day.activities ?? []).length ? `<div class="timeline">${day.activities.map(renderActivity).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No fixed plans yet</strong>This day is open. Add an activity in the itinerary file when you are ready.</div>'}
+          ${dayItems(day).length ? `<div class="timeline">${dayItems(day).map((item) => item.type === 'transit' ? renderTransit(item, dayItems(day)) : renderActivity(item)).join('')}</div>` : '<div class="empty-day" data-testid="empty-day"><strong>No fixed plans yet</strong>This day is open. Add an activity in the itinerary file when you are ready.</div>'}
         </article>` : `<article class="trip-overview" data-testid="trip-overview">
           <header><p class="eyebrow">At a glance</p><h2>Trip overview</h2>${tripSummary(state.trip) ? `<p>${escapeHtml(tripSummary(state.trip))}</p>` : '<p>Choose a day to see its complete itinerary.</p>'}</header>
           ${days.length ? `<ol class="overview-day-list">${days.map(dayPreview).join('')}</ol>` : '<section class="empty-card" data-testid="empty-itinerary"><h3>No itinerary days available</h3><p>This trip does not contain any day plans.</p></section>'}
@@ -318,7 +344,9 @@ async function loadPublished(target) {
   const [schemaResponse, response] = await Promise.all([fetch(schemaUrl), fetch(assetUrl)]);
   if (!schemaResponse.ok) throw new Error(`The itinerary schema could not be loaded (${schemaResponse.status}).`);
   if (!response.ok) throw new Error(response.status === 404 ? 'This itinerary revision has not been published.' : `The itinerary could not be loaded (${response.status}).`);
-  const candidate = validateItinerary(await response.json());
+  const rawCandidate = await response.json();
+  validateItinerary(rawCandidate);
+  const candidate = migrateItinerary(rawCandidate);
   if (tripId(candidate) !== target.id || revision(candidate) !== target.revision) throw new Error('The published itinerary does not match the requested immutable revision.');
   await store.saveTrip(candidate);
   return candidate;

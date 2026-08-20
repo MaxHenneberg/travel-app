@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "trip": {
     "id": "sample-autumn-weekend",
     "title": "Autumn weekend",
@@ -12,25 +12,37 @@
         "id": "arrival-day",
         "date": "2026-09-18",
         "title": "Arrival",
-        "activities": [
+        "items": [
           {
             "id": "check-in",
+            "type": "stop",
             "title": "Check in",
             "startsAt": "2026-09-18T15:00:00+02:00",
             "category": "stay"
+          },
+          {
+            "id": "arrival-walk",
+            "type": "transit",
+            "from": "check-in",
+            "to": { "name": "Riverside cafe" },
+            "mode": "walk",
+            "departure": "15:50",
+            "arrival": "16:10",
+            "duration": "20 min",
+            "instructions": "Take the quiet route along the park."
           }
         ]
       },
       {
         "id": "open-day",
         "date": "2026-09-19",
-        "activities": []
+        "items": []
       },
       {
         "id": "departure-day",
         "date": "2026-09-20",
         "title": "Departure",
-        "activities": []
+        "items": []
       }
     ]
   }
