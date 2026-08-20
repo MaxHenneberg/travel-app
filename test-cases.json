@@ -1,7 +1,7 @@
 {
   "stories": ["TRAVEL-112", "TRAVEL-116", "TRAVEL-121", "TRAVEL-3", "TRAVEL-4", "TRAVEL-5", "TRAVEL-6", "TRAVEL-7", "TRAVEL-8", "TRAVEL-9", "TRAVEL-10", "TRAVEL-11", "TRAVEL-12", "TRAVEL-50", "TRAVEL-55", "TRAVEL-60", "TRAVEL-63", "TRAVEL-80", "TRAVEL-89", "TRAVEL-94", "TRAVEL-95", "TRAVEL-96"],
   "cases": [
-    { "id": "TA-TRAVEL-116-01", "jiraKey": "TRAVEL-116", "story": "TRAVEL-116", "execution": ["pull-request", "post-deploy"], "profiles": ["chromium", "android-chrome"] },
+    { "id": "TA-TRAVEL-116-01", "jiraKey": "TRAVEL-117", "story": "TRAVEL-116", "execution": ["pull-request", "post-deploy"], "profiles": ["chromium", "android-chrome"] },
     { "id": "TA-TRAVEL-96-01", "jiraKey": "TRAVEL-103", "story": "TRAVEL-96", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] },
     { "id": "TA-TRAVEL-96-02", "jiraKey": "TRAVEL-105", "story": "TRAVEL-96", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] },
     { "id": "TA-TRAVEL-96-03", "jiraKey": "TRAVEL-106", "story": "TRAVEL-96", "execution": ["pull-request"], "profiles": ["chromium", "android-chrome"] },
