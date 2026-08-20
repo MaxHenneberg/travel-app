@@ -3,6 +3,8 @@ import { clientsClaim } from 'workbox-core';
 import { precacheAndRoute, createHandlerBoundToURL, cleanupOutdatedCaches } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst } from 'workbox-strategies';
+import { purgeExpiredImports, putPendingImport } from '../lib/pending-import.js';
+import { validateImportTransport } from '../lib/trailbook-import.js';
 
 declare let self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<unknown> };
 
@@ -15,9 +17,9 @@ const IMAGE_CACHE = 'trailbook-stop-images-v1';
 clientsClaim();
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
-
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
+    await purgeExpiredImports();
     const current = new Set([DATA_CACHE, RUNTIME_CACHE, IMAGE_CACHE]);
     const obsolete = (await caches.keys()).filter((name) =>
       (name.startsWith('trailbook-data-') || name.startsWith('trailbook-runtime-')) && !current.has(name));
@@ -25,32 +27,44 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
-async function storeSharedFile(file: File): Promise<string> {
-  const id = crypto.randomUUID();
-  const database = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open('trailbook-share-target', 1);
-    request.onupgradeneeded = () => request.result.createObjectStore('pending', { keyPath: 'id' });
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+function shareRedirect(parameters: Record<string, string>): Response {
+  const destination = new URL('./', self.registration.scope);
+  for (const [key, value] of Object.entries(parameters)) destination.searchParams.set(key, value);
+  return new Response(null, {
+    status: 303,
+    headers: { Location: destination.href, 'Cache-Control': 'no-store' },
   });
-  await new Promise<void>((resolve, reject) => {
-    const transaction = database.transaction('pending', 'readwrite');
-    transaction.objectStore('pending').put({ id, file, createdAt: Date.now() });
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-  return id;
 }
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'POST' || url.searchParams.get('share-target') !== 'itinerary') return;
+  const action = new URL('share-target', self.registration.scope);
+  if (event.request.method !== 'POST' || url.origin !== action.origin || url.pathname !== action.pathname) return;
   event.respondWith((async () => {
-    const data = await event.request.formData();
-    const file = data.get('itinerary');
-    if (!(file instanceof File)) return Response.redirect(new URL('./?share-target=missing', self.registration.scope), 303);
-    const id = await storeSharedFile(file);
-    return Response.redirect(new URL(`./?share-target=confirm&id=${encodeURIComponent(id)}`, self.registration.scope), 303);
+    try {
+      if (!event.request.headers.get('content-type')?.toLowerCase().startsWith('multipart/form-data;')) {
+        return shareRedirect({ 'share-target': 'error', reason: 'invalid_request' });
+      }
+      const data = await event.request.formData();
+      const entries = [...data.entries()];
+      if (entries.length !== 1 || entries[0][0] !== 'itinerary' || !(entries[0][1] instanceof File)) {
+        return shareRedirect({ 'share-target': 'error', reason: 'unexpected_files' });
+      }
+      const file = entries[0][1];
+      validateImportTransport(file, { source: 'share-target' });
+      const pending = await putPendingImport({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        bytes: await file.arrayBuffer(),
+        source: 'share-target',
+      });
+      return shareRedirect({ 'share-target': 'confirm', id: pending.id });
+    } catch (error) {
+      const failure = error as { code?: unknown };
+      const reason = typeof failure?.code === 'string' ? failure.code : 'unreadable_file';
+      return shareRedirect({ 'share-target': 'error', reason });
+    }
   })());
 });
 

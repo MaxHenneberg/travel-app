@@ -100,6 +100,8 @@ test('TA-TRAVEL-94-01 @pr @post-deploy exports one schema-valid portable itinera
   await page.locator('#trip-import').setInputFiles({
     name: shared.name, mimeType: shared.type, buffer: Buffer.from(shared.text),
   });
+  await expect(page.getByRole('heading', { name: 'Review before importing' })).toBeVisible();
+  await page.getByRole('button', { name: 'Import and open trip' }).click();
   await expect(page.getByRole('heading', { name: fixture.trip.title })).toBeVisible();
   await page.locator('.overview-day-card').filter({ hasText: 'Arrival' }).click();
   await expect(page.getByRole('navigation', { name: 'Itinerary days' })).toBeVisible();
