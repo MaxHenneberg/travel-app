@@ -71,8 +71,8 @@ test('collection uses one flat list instead of nested cards', async ({ page }) =
   const trip = await surfaceProfile(page.locator('.trip-card').first());
   expect(trip).toMatchObject({ radius: '0px', shadow: 'none' });
   expect(trip.borders).toEqual(['0px', '0px', '1px', '0px']);
-  await expect(page.getByRole('link', { name: 'Open trip overview' })).toHaveText('Open');
-  await expect(page.getByRole('button', { name: 'Remove saved trip' })).toHaveText('Remove');
+  await expect(page.locator('[data-trip-id="weekend-lisbon"]').getByRole('link', { name: 'Open trip overview' })).toHaveText('Open');
+  await expect(page.locator('[data-trip-id="weekend-lisbon"]').getByRole('button', { name: 'Remove saved trip' })).toHaveText('Remove');
 });
 
 test('overview, timeline and attachments avoid card-in-card elevation', async ({ page }) => {

@@ -21,8 +21,8 @@ const canonical = await json('data/itineraries/example.v1.json');
 assert(validateCanonical(canonical), `example.v1.json violates itinerary.v1.schema.json: ${ajv.errorsText(validateCanonical.errors)}`);
 const schemaV11 = await json('data/schemas/itinerary.v1.1.schema.json');
 const validateV11 = ajv.compile(schemaV11);
-const canonicalV11 = await json('data/itineraries/example.v1.1.json');
-assert(validateV11(canonicalV11), `example.v1.1.json violates itinerary.v1.1.schema.json: ${ajv.errorsText(validateV11.errors)}`);
+const canonicalV11 = await json('data/itineraries/transit-example/v1.json');
+assert(validateV11(canonicalV11), `transit-example/v1.json violates itinerary.v1.1.schema.json: ${ajv.errorsText(validateV11.errors)}`);
 
 const index = await json('data/itineraries/index.json');
 assert(index.schemaVersion === 1 && Array.isArray(index.itineraries), 'itinerary index must use schemaVersion 1 and contain an itineraries array');
@@ -37,7 +37,8 @@ for (const entry of index.itineraries) {
   const itinerary = await json(`data/itineraries/${entry.id}/v${entry.revision}.json`);
   const result = inspectItinerary(itinerary);
   assert(result.valid, `${identity} is invalid: ${result.errors.map(({ path, message }) => `${path}: ${message}`).join('; ')}`);
-  assert(itinerary.id === entry.id && itinerary.revision === entry.revision, `${identity} does not match its indexed identity`);
+  const trip = itinerary.trip ?? itinerary;
+  assert(trip.id === entry.id && Number(trip.revision ?? 1) === entry.revision, `${identity} does not match its indexed identity`);
 }
 
 console.log(`Validated schema and ${entries.size + 1} itinerary fixture(s).`);
