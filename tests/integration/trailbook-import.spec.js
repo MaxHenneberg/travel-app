@@ -119,7 +119,7 @@ test('TA-TRAVEL-95-02 @pr validates, confirms, and resolves cancel, replace, and
     const records = await new Promise((resolve, reject) => { all.onsuccess = () => resolve(all.result); all.onerror = () => reject(all.error); });
     db.close();
     const copy = records.map(({ value }) => value).find((value) => value.trip?.title === 'Separate northern Japan copy');
-    return { id: copy.trip.id, dayId: copy.trip.days[0].id, activityId: copy.trip.days[0].activities[0].id };
+    return { id: copy.trip.id, dayId: copy.trip.days[0].id, activityId: copy.trip.days[0].items[0].id };
   });
   expect(duplicateState.id).toMatch(/^shared-sprint-four-copy-/);
   expect(duplicateState).toMatchObject({ dayId: 'arrival-day-stable', activityId: 'train-stop-stable' });

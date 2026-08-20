@@ -31,7 +31,7 @@ test('TA-TRAVEL-3-03 @post-deploy keeps the collection readable on Android', asy
   test.skip(testInfo.project.name !== 'android-chrome', 'Android profile coverage');
   expect((await page.goto('./', { waitUntil: 'networkidle' }))?.ok()).toBeTruthy();
   await expect(page.getByTestId('primary-content')).toBeInViewport();
-  await expect(page.locator('.trip-card')).toBeVisible();
+  await expect(page.locator('[data-trip-id="weekend-lisbon"]')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
@@ -47,7 +47,7 @@ test('TA-TRAVEL-4-01 @pr uses the unified application shell at the minimum suppo
 test('TA-TRAVEL-4-02 @pr supports touch navigation from collection to overview and day', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'android-chrome', 'Android profile coverage');
   await page.goto('./');
-  const open = page.getByRole('link', { name: 'Open trip overview' });
+  const open = page.locator('[data-trip-id="weekend-lisbon"]').getByRole('link', { name: 'Open trip overview' });
   const size = await open.boundingBox();
   expect(size?.height).toBeGreaterThanOrEqual(48);
   await open.tap();

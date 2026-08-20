@@ -56,11 +56,11 @@ test('TA-TRAVEL-95-02 validates supported UTF-8 v1 and preserves internal IDs fo
   assert.equal(result.preview.tripId, 'shared-kyoto');
   assert.equal(result.preview.title, 'Kyoto <Autumn>');
   assert.equal(result.preview.destination, 'JP');
-  assert.equal(result.preview.schemaVersion, '1.0.0');
+  assert.equal(result.preview.schemaVersion, '1.1.0');
   const duplicate = duplicateItinerary(result.candidate, 'shared-kyoto-copy-safe');
   assert.equal(duplicate.trip.id, 'shared-kyoto-copy-safe');
   assert.equal(duplicate.trip.days[0].id, 'stable-day');
-  assert.equal(duplicate.trip.days[0].activities[0].id, 'stable-stop');
+  assert.equal(duplicate.trip.days[0].items[0].id, 'stable-stop');
 });
 
 test('TA-TRAVEL-95-04 rejects MIME spoofing, unsafe paths, active content, limits, and unsupported schemas', async () => {

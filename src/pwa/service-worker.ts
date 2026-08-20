@@ -10,7 +10,7 @@ declare let self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<unknown> };
 
 // Runtime data is versioned with the schema contract. Immutable itinerary URLs
 // stay on the controlling app version until the user accepts a complete update.
-const CACHE_VERSION = 'schema-v1-app-v3';
+const CACHE_VERSION = 'schema-v1.1-app-v1';
 const DATA_CACHE = `trailbook-data-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `trailbook-runtime-${CACHE_VERSION}`;
 const IMAGE_CACHE = 'trailbook-stop-images-v1';

@@ -1,4 +1,4 @@
-import { inspectItinerary } from './itinerary.js';
+import { inspectItinerary, migrateItinerary } from './itinerary.js';
 import { TRAILBOOK_EXTENSION, TRAILBOOK_MIME_TYPE } from './trailbook-export.js';
 
 export const TRAILBOOK_IMPORT_LIMITS = Object.freeze({
@@ -118,7 +118,8 @@ export async function validateTrailbookImport(file, options = {}) {
     const code = first?.code === 'unsupported_version' ? 'unsupported_schema' : 'invalid_schema';
     throw new TrailbookImportError(code, `The itinerary does not match the supported v1 schema (${first?.path || '$'}: ${first?.message || 'invalid'}).`);
   }
-  return { candidate, preview: previewFor(candidate, displayName) };
+  const migrated = migrateItinerary(candidate);
+  return { candidate: migrated, preview: previewFor(migrated, displayName) };
 }
 
 export function duplicateItinerary(candidate, newId = `${candidate.trip?.id ?? candidate.id}-copy-${crypto.randomUUID().slice(0, 8)}`) {
