@@ -83,7 +83,11 @@ function validateActivity(activity, path, errors) {
   requiredString(activity.title, `${path}/title`, errors);
   requiredDateTime(activity.startsAt, `${path}/startsAt`, errors);
   if (activity.endsAt !== undefined) requiredDateTime(activity.endsAt, `${path}/endsAt`, errors);
-  for (const field of ['category', 'location', 'notes', 'description', 'duration', 'reservation']) optionalString(activity[field], `${path}/${field}`, errors);
+  for (const field of ['category', 'notes', 'description', 'duration', 'reservation']) optionalString(activity[field], `${path}/${field}`, errors);
+  if (activity.location !== undefined) {
+    if (typeof activity.location === 'string') optionalString(activity.location, `${path}/location`, errors);
+    else validateFlatLocation(activity.location, `${path}/location`, errors);
+  }
 
   if (typeof activity.startsAt === 'string' && typeof activity.endsAt === 'string'
       && !Number.isNaN(Date.parse(activity.startsAt)) && !Number.isNaN(Date.parse(activity.endsAt))
