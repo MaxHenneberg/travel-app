@@ -144,12 +144,12 @@ function validateEndpoint(value, path, errors) {
 
 function validateTransitSegment(segment, path, errors) {
   if (!isRecord(segment)) { errors.push(issue(path, 'invalid_type', 'must be an object.', 'Use an object describing this transit segment.')); return; }
-  rejectUnknownProperties(segment, new Set(['id', 'mode', 'from', 'to', 'departure', 'arrival', 'duration', 'operator', 'service', 'platform', 'terminal', 'notes', 'reservation', 'ticketRef']), path, errors);
+  rejectUnknownProperties(segment, new Set(['id', 'mode', 'from', 'to', 'departure', 'arrival', 'duration', 'operator', 'service', 'platform', 'terminal', 'notes', 'reservation']), path, errors);
   requiredString(segment.id, `${path}/id`, errors);
   if (!TRANSIT_MODES.includes(segment.mode)) errors.push(issue(`${path}/mode`, 'unsupported_mode', `must be one of ${TRANSIT_MODES.join(', ')}.`, 'Choose a supported lower-case transit mode.'));
   validateEndpoint(segment.from, `${path}/from`, errors); validateEndpoint(segment.to, `${path}/to`, errors);
   for (const field of ['departure', 'arrival']) if (segment[field] !== undefined) requiredDateTime(segment[field], `${path}/${field}`, errors);
-  for (const field of ['duration', 'operator', 'service', 'platform', 'terminal', 'notes', 'reservation', 'ticketRef']) optionalString(segment[field], `${path}/${field}`, errors);
+  for (const field of ['duration', 'operator', 'service', 'platform', 'terminal', 'notes', 'reservation']) optionalString(segment[field], `${path}/${field}`, errors);
 }
 
 function validateStop(stop, path, errors) {
@@ -161,7 +161,7 @@ function validateStop(stop, path, errors) {
 
 function validateTransit(transit, path, errors) {
   if (!isRecord(transit)) { errors.push(issue(path, 'invalid_type', 'must be an object.', 'Use a transit object.')); return; }
-  rejectUnknownProperties(transit, new Set(['id', 'type', 'title', 'fromStopId', 'toStopId', 'from', 'to', 'mode', 'departure', 'arrival', 'duration', 'operator', 'service', 'platform', 'terminal', 'notes', 'reservation', 'ticketRef', 'segments']), path, errors);
+  rejectUnknownProperties(transit, new Set(['id', 'type', 'title', 'fromStopId', 'toStopId', 'from', 'to', 'mode', 'departure', 'arrival', 'duration', 'operator', 'service', 'platform', 'terminal', 'notes', 'reservation', 'segments']), path, errors);
   requiredString(transit.id, `${path}/id`, errors);
   if (transit.type !== 'transit') errors.push(issue(`${path}/type`, 'invalid_discriminator', 'must be "transit".', 'Set type to "transit" for travel between stops.'));
   requiredString(transit.title, `${path}/title`, errors);
@@ -169,7 +169,7 @@ function validateTransit(transit, path, errors) {
   validateEndpoint(transit.from, `${path}/from`, errors); validateEndpoint(transit.to, `${path}/to`, errors);
   if (!TRANSIT_MODES.includes(transit.mode)) errors.push(issue(`${path}/mode`, 'unsupported_mode', `must be one of ${TRANSIT_MODES.join(', ')}.`, 'Choose a supported lower-case transit mode.'));
   for (const field of ['departure', 'arrival']) if (transit[field] !== undefined) requiredDateTime(transit[field], `${path}/${field}`, errors);
-  for (const field of ['duration', 'operator', 'service', 'platform', 'terminal', 'notes', 'reservation', 'ticketRef']) optionalString(transit[field], `${path}/${field}`, errors);
+  for (const field of ['duration', 'operator', 'service', 'platform', 'terminal', 'notes', 'reservation']) optionalString(transit[field], `${path}/${field}`, errors);
   if (transit.segments !== undefined) {
     if (!Array.isArray(transit.segments)) errors.push(issue(`${path}/segments`, 'invalid_type', 'must be an array.', 'Use an ordered array of transit segments.'));
     else { duplicateIds(transit.segments, `${path}/segments`, errors); transit.segments.forEach((segment, index) => validateTransitSegment(segment, `${path}/segments/${index}`, errors)); }

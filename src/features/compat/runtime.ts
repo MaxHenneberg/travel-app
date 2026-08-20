@@ -2,7 +2,7 @@
 import '../../style.css';
 import { ITINERARY_SCHEMA_VERSION, parseItinerary, validateItinerary } from '../../lib/itinerary.js';
 import { buildHashRoute, tryParseHashRoute } from '../../lib/hash-route.js';
-import { buildGoogleMapsPlaceUrl } from '../../lib/google-maps.js';
+import { buildGoogleMapsPlaceUrl, buildGoogleMapsRouteUrl } from '../../lib/google-maps.js';
 import { createTripStore } from '../../lib/trip-store.js';
 import { countryName, createCountryHistoryStore } from '../../lib/country-history.js';
 import { createAttachmentStore } from '../../lib/attachment-store.js';
@@ -115,12 +115,12 @@ const attachmentIcon = (name) => ({
   remove: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg>',
 }[name]);
 
-function attachmentPanel(scope, heading) {
+function attachmentPanel(scope, heading, { accept = '' } = {}) {
   const key = attachmentScopeKey(scope);
   const records = state.attachments.get(key) ?? [];
   return `<section class="attachments" data-attachment-scope="${escapeHtml(key)}" aria-label="${escapeHtml(heading)}">
     <div class="attachment-heading"><div><span class="attachment-title">${escapeHtml(heading)}</span><span class="attachment-status">Local · offline</span></div>
-      <div class="attachment-picker-wrap"><button class="attachment-picker" type="button" data-attachment-trigger aria-label="Upload files to ${escapeHtml(heading)}" title="Upload files">${attachmentIcon('upload')}</button><input class="sr-only" type="file" multiple data-attachment-input aria-label="Choose files for ${escapeHtml(heading)}" data-trip-id="${escapeHtml(scope.tripId)}" data-scope-type="${escapeHtml(scope.type)}" data-owner-id="${escapeHtml(scope.ownerId)}"></div>
+      <div class="attachment-picker-wrap"><button class="attachment-picker" type="button" data-attachment-trigger aria-label="Upload files to ${escapeHtml(heading)}" title="Upload files">${attachmentIcon('upload')}</button><input class="sr-only" type="file" multiple accept="${escapeHtml(accept)}" data-attachment-input aria-label="Choose files for ${escapeHtml(heading)}" data-trip-id="${escapeHtml(scope.tripId)}" data-scope-type="${escapeHtml(scope.type)}" data-owner-id="${escapeHtml(scope.ownerId)}"></div>
     </div>
     <p class="attachment-privacy sr-only">Documents stay in this browser profile. They are not uploaded or app-encrypted.</p>
     ${records.length ? `<ul class="attachment-list">${records.map((item) => `<li class="attachment-item" data-attachment-id="${escapeHtml(item.id)}">
@@ -140,7 +140,7 @@ async function refreshAttachmentState() {
   const scopes = [{ tripId: tripId(state.trip), type: 'trip', ownerId: tripId(state.trip) }];
   for (const day of tripDays(state.trip)) {
     scopes.push({ tripId: tripId(state.trip), type: 'day', ownerId: day.id });
-    for (const activity of dayItems(day)) if (activity.type !== 'transit') scopes.push({ tripId: tripId(state.trip), type: 'stop', ownerId: activity.id });
+    for (const activity of dayItems(day)) scopes.push({ tripId: tripId(state.trip), type: activity.type === 'transit' ? 'transit' : 'stop', ownerId: activity.id });
   }
   try {
     const lists = await Promise.all(scopes.map((scope) => attachmentStore.list(scope)));
@@ -203,11 +203,36 @@ function transitDetails(transit) {
   const rows = [];
   const details = [
     ['Operator', transit.operator], ['Service', transit.service], ['Platform', transit.platform], ['Terminal', transit.terminal],
-    ['Reservation', transit.reservation], ['Ticket', transit.ticketRef], ['Notes', transit.notes],
+    ['Reservation', transit.reservation], ['Notes', transit.notes],
   ].filter(([, value]) => value);
   if (details.length) rows.push(`<dl class="transit-details">${details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>`);
   if (transit.segments?.length) rows.push(`<ol class="transit-segments" aria-label="Transit segments">${transit.segments.map((segment) => `<li><strong>${escapeHtml(segment.mode)}</strong><span>${escapeHtml(segment.from.name)} → ${escapeHtml(segment.to.name)}</span><small>${escapeHtml([segment.departure && activityTime({ startsAt: segment.departure }), segment.arrival && activityTime({ startsAt: segment.arrival }), segment.operator, segment.service, segment.platform, segment.terminal].filter(Boolean).join(' · '))}</small>${segment.notes ? `<p>${escapeHtml(segment.notes)}</p>` : ''}</li>`).join('')}</ol>`);
   return rows;
+}
+
+function googleMapsMode(mode) {
+  if (mode === 'walk') return 'walking';
+  if (mode === 'bicycle') return 'bicycling';
+  if (mode === 'car' || mode === 'taxi') return 'driving';
+  return ['bus', 'tram', 'metro', 'subway', 'train', 'ferry'].includes(mode) ? 'transit' : undefined;
+}
+
+function endpointMapUrl(endpoint) {
+  try { return buildGoogleMapsPlaceUrl(endpoint); } catch { return null; }
+}
+
+function directionsUrl(from, to, mode) {
+  try { return buildGoogleMapsRouteUrl([from, to], { travelMode: googleMapsMode(mode) }); } catch { return null; }
+}
+
+function transitMapActions(transit) {
+  const route = directionsUrl(transit.from, transit.to, transit.mode);
+  const segments = (transit.segments ?? []).map((segment) => {
+    const start = endpointMapUrl(segment.from);
+    const directions = directionsUrl(segment.from, segment.to, segment.mode);
+    return `<li>${start ? `<a class="button map-action" data-map-link href="${escapeHtml(start)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(segment.from.name)} in Google Maps">Map start</a>` : ''}${directions ? `<a class="button map-action" data-map-link href="${escapeHtml(directions)}" target="_blank" rel="noopener noreferrer" aria-label="Directions from ${escapeHtml(segment.from.name)} to ${escapeHtml(segment.to.name)}">Directions</a>` : ''}</li>`;
+  }).filter(Boolean);
+  return `${route ? `<a class="button map-action" data-map-link href="${escapeHtml(route)}" target="_blank" rel="noopener noreferrer" aria-label="Open itinerary directions from ${escapeHtml(transit.from.name)} to ${escapeHtml(transit.to.name)}">Itinerary directions ↗</a>` : ''}${segments.length ? `<ul class="transit-map-actions" aria-label="Segment map actions">${segments.join('')}</ul>` : ''}`;
 }
 
 function renderTransit(transit) {
@@ -220,6 +245,8 @@ function renderTransit(transit) {
       <p class="transit-route"><strong>${escapeHtml(transit.from.name)}</strong><span aria-hidden="true"> → </span><strong>${escapeHtml(transit.to.name)}</strong></p>
       ${timing ? `<div class="activity-summary"><span>${escapeHtml(timing)}</span></div>` : ''}
       ${details.length ? `<details open><summary aria-label="Transit details">Transit details</summary><div class="details-body">${details.join('')}</div></details>` : ''}
+      <div class="transit-actions">${transitMapActions(transit)}</div>
+      ${attachmentPanel({ tripId: tripId(state.trip), type: 'transit', ownerId: transit.id }, 'Transit tickets', { accept: '.pdf,.pkpass,application/pdf,application/vnd.apple.pkpass' })}
     </div></article>`;
 }
 

@@ -14,9 +14,15 @@ test('migrates v1.0 activities losslessly into ordered v1.1 stop items without i
 
 test('validates detailed ordered multi-segment transit and preserves it through export', () => {
   const itinerary = validateItinerary(v10());
-  itinerary.trip.days[0].items.splice(1, 0, { id: 'transfer', type: 'transit', title: 'Rail transfer', fromStopId: 'start', toStopId: 'end', from: { name: 'Berlin Hbf' }, to: { name: 'Potsdam Hbf' }, mode: 'train', departure: '2026-10-01T08:15:00+02:00', arrival: '2026-10-01T09:00:00+02:00', operator: 'DB', service: 'RE1', platform: '7', ticketRef: 'ABC-123', segments: [{ id: 'walk', mode: 'walk', from: { name: 'Berlin Hbf' }, to: { name: 'Platform 7' }, duration: '5 min' }, { id: 'rail', mode: 'train', from: { name: 'Platform 7' }, to: { name: 'Potsdam Hbf' }, service: 'RE1' }] });
+  itinerary.trip.days[0].items.splice(1, 0, { id: 'transfer', type: 'transit', title: 'Rail transfer', fromStopId: 'start', toStopId: 'end', from: { name: 'Berlin Hbf' }, to: { name: 'Potsdam Hbf' }, mode: 'train', departure: '2026-10-01T08:15:00+02:00', arrival: '2026-10-01T09:00:00+02:00', operator: 'DB', service: 'RE1', platform: '7', segments: [{ id: 'walk', mode: 'walk', from: { name: 'Berlin Hbf' }, to: { name: 'Platform 7' }, duration: '5 min' }, { id: 'rail', mode: 'train', from: { name: 'Platform 7' }, to: { name: 'Potsdam Hbf' }, service: 'RE1' }] });
   const exported = createTrailbookExport(itinerary, { FileCtor: class { constructor(parts) { this.text = parts.join(''); } } });
   assert.equal(JSON.parse(exported.json).trip.days[0].items[1].segments[1].service, 'RE1');
+});
+
+test('rejects ticket-reference text so ticket documents remain local attachments', () => {
+  const itinerary = validateItinerary(v10());
+  itinerary.trip.days[0].items.splice(1, 0, { id: 'transfer', type: 'transit', title: 'Rail transfer', fromStopId: 'start', toStopId: 'end', from: { name: 'Berlin Hbf' }, to: { name: 'Potsdam Hbf' }, mode: 'train', ticketRef: 'do-not-export' });
+  assert.ok(inspectItinerary(itinerary).errors.some((error) => error.path === '/trip/days/0/items/1/ticketRef'));
 });
 
 test('reports the exact discriminator and unknown neighbor-stop reference paths', () => {

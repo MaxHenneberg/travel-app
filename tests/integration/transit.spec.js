@@ -9,4 +9,13 @@ test('TA-TRAVEL-116-01 @pr renders ordered stop destinations and detailed multi-
   await expect(transit).toContainText('Urban line');
   await expect(transit.getByRole('list', { name: 'Transit segments' })).toContainText('train');
   await expect(transit.getByRole('list', { name: 'Transit segments' })).toContainText('ferry');
+  await expect(transit.getByRole('link', { name: /itinerary directions/i })).toHaveAttribute('href', /travelmode=transit/);
+  await expect(transit.getByRole('link', { name: /Open Lisbon Oriente in Google Maps/i })).toBeVisible();
+  await expect(transit.getByRole('link', { name: /Open Cais do Sodré in Google Maps/i })).toBeVisible();
+
+  const tickets = page.locator('[data-attachment-scope="transit-example:transit:rail-ferry"]');
+  await tickets.locator('input').setInputFiles({ name: 'rail-ticket.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 transit ticket') });
+  await expect(tickets).toContainText('rail-ticket.pdf');
+  await page.reload();
+  await expect(page.locator('[data-attachment-scope="transit-example:transit:rail-ferry"]')).toContainText('rail-ticket.pdf');
 });
