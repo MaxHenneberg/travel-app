@@ -11,6 +11,7 @@ assert.match(manifest, /application\/octet-stream/);
 assert.match(manifest, /application\/json/);
 assert.match(manifest, /android:scheme="content"/);
 assert.match(manifest, /android:pathPattern="\.\*\\\.trailbook"/);
+assert.equal(manifest.match(/android:host="\*"/g)?.length, 2);
 assert.doesNotMatch(manifest, /android:mimeType="\*\/\*"/);
 assert.doesNotMatch(manifest, /android\.intent\.category\.BROWSABLE/);
 assert.doesNotMatch(manifest, /READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE/);

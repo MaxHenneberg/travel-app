@@ -84,6 +84,7 @@ test('TA-TRAVEL-96-03 @pr keeps Android association targeted and Pages deploymen
   expect(manifest).toContain('application/vnd.trailbook.itinerary+json');
   expect(manifest).toContain('application/octet-stream');
   expect(manifest).toContain('android:scheme="content"');
+  expect(manifest.match(/android:host="\*"/g)).toHaveLength(2);
   expect(manifest).not.toContain('android:mimeType="*/*"');
   expect(manifest).not.toContain('android.intent.category.BROWSABLE');
   expect(manifest).not.toMatch(/READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE/);
