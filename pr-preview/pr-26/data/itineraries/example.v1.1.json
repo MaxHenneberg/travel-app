@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.1.0",
+  "trip": {
+    "id": "rail-and-ferry-example", "title": "Rail and ferry example", "startDate": "2026-09-18", "endDate": "2026-09-18", "timeZone": "Europe/Lisbon",
+    "days": [{ "id": "arrival", "date": "2026-09-18", "title": "Inter-city arrival", "items": [
+      { "id": "lisbon-station", "type": "stop", "title": "Lisbon Oriente", "startsAt": "2026-09-18T08:30:00+01:00", "location": "Gare do Oriente" },
+      { "id": "rail-ferry", "type": "transit", "title": "Rail and ferry to Cacilhas", "fromStopId": "lisbon-station", "toStopId": "cacilhas", "from": { "name": "Lisbon Oriente", "station": "Gare do Oriente" }, "to": { "name": "Cacilhas ferry terminal", "terminal": "Cacilhas" }, "mode": "train", "departure": "2026-09-18T08:45:00+01:00", "arrival": "2026-09-18T10:05:00+01:00", "duration": "80 min", "operator": "CP", "service": "Urban line", "platform": "5", "ticketRef": "TRAIL-204", "segments": [
+        { "id": "rail", "mode": "train", "from": { "name": "Lisbon Oriente" }, "to": { "name": "Cais do Sodré" }, "departure": "2026-09-18T08:45:00+01:00", "arrival": "2026-09-18T09:20:00+01:00", "operator": "CP", "platform": "5" },
+        { "id": "ferry", "mode": "ferry", "from": { "name": "Cais do Sodré" }, "to": { "name": "Cacilhas ferry terminal" }, "departure": "2026-09-18T09:35:00+01:00", "arrival": "2026-09-18T10:05:00+01:00", "operator": "Transtejo", "terminal": "C" }
+      ] },
+      { "id": "cacilhas", "type": "stop", "title": "Cacilhas waterfront", "startsAt": "2026-09-18T10:15:00+01:00", "location": "Cacilhas, Almada" }
+    ] }]
+  }
+}
