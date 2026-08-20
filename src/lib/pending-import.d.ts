@@ -3,7 +3,7 @@ export interface PendingImportInput {
   type: string;
   size: number;
   bytes: ArrayBuffer;
-  source: 'share-target' | 'picker';
+  source: 'share-target' | 'picker' | 'android-view';
   deliveryKey?: string;
 }
 
