@@ -81,17 +81,17 @@ test('TA-TRAVEL-8-01 @pr opens a place through an encoded Google Maps link', asy
   expect(url.searchParams.get('query_place_id')).toBeTruthy();
 });
 
-test('TA-TRAVEL-8-02 @pr keeps ordered stops exclusively in Map-Route', async ({ page }, testInfo) => {
+test('TA-TRAVEL-8-02 @pr keeps ordered stops in Day Overview', async ({ page }, testInfo) => {
   onlyProject(testInfo, 'android-chrome');
   await openSample(page, 'river-day');
   await expect(page.locator('[data-view-day-route], #day-route')).toHaveCount(0);
   await expect(page.getByText('Day route', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Map-Route' }).click();
-  const route = page.getByRole('list', { name: 'Ordered map route' });
-  await expect(route.getByRole('listitem')).toHaveCount(3);
-  await expect(route.getByRole('listitem').nth(0)).toContainText('Jerónimos Monastery');
-  await expect(route.getByRole('listitem').nth(1)).toContainText('Jardim de Belém');
-  await expect(route.getByRole('listitem').nth(2)).toContainText('MAAT Lisbon');
+  await page.getByRole('button', { name: 'Day Overview' }).click();
+  const route = page.locator('ol.route-stop-list[aria-label="Ordered day stops"]');
+  await expect(route.locator(':scope > li')).toHaveCount(3);
+  await expect(route.locator(':scope > li').nth(0)).toContainText('Jerónimos Monastery');
+  await expect(route.locator(':scope > li').nth(1)).toContainText('Jardim de Belém');
+  await expect(route.locator(':scope > li').nth(2)).toContainText('MAAT Lisbon');
 });
 
 test('TA-TRAVEL-8-03 @pr explains that external maps are unavailable offline', async ({ page, context }, testInfo) => {

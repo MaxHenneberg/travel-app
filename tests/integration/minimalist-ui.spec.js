@@ -179,25 +179,26 @@ for (const viewport of [
   });
 }
 
-test('day route UI is absent while Map-Route remains ordered and offline navigable', async ({ page, context }) => {
+test('day route UI is absent while Day Overview remains ordered and offline navigable', async ({ page, context }) => {
   await page.goto('./#/trip/weekend-lisbon/v/1/day/river-day');
   await expect(page.getByTestId('selected-day-title')).toHaveText('Belém & the river');
   await expect(page.locator('.timeline .activity')).toHaveCount(3);
-  const mapRoute = page.getByRole('button', { name: 'Map-Route' });
+  const mapRoute = page.getByRole('button', { name: 'Day Overview' });
   await expect(mapRoute).toBeVisible();
   await expect(page.locator('[data-view-day-route], #day-route')).toHaveCount(0);
   await expect(page.getByText('Day route', { exact: true })).toHaveCount(0);
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
   await mapRoute.click();
-  const route = page.getByRole('list', { name: 'Ordered map route' });
-  await expect(route.getByRole('listitem')).toHaveCount(3);
-  await expect(route.getByRole('listitem')).toHaveText([
+  const route = page.locator('ol.route-stop-list[aria-label="Ordered day stops"]');
+  await expect(route.locator(':scope > li')).toHaveCount(3);
+  await expect(route.locator(':scope > li')).toHaveText([
     /Jerónimos Monastery/,
     /Jardim de Belém/,
     /MAAT Lisbon/,
   ]);
-  await expect(page.getByText('Available offline')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Map' })).toBeVisible();
+  await expect(page.locator('#network-status')).toContainText('Offline');
 });
 
 for (const viewport of [
@@ -229,8 +230,8 @@ test('route and history reuse the flat reading surface in both themes', async ({
   for (const theme of ['sakura', 'neon-japan']) {
     await page.getByRole('button', { name: 'Open app menu' }).click();
     await page.getByLabel('Theme').selectOption(theme);
-    await page.getByRole('button', { name: 'Map-Route' }).click();
-    await expect(page.getByTestId('primary-content').getByRole('heading', { name: 'Map-Route' })).toBeVisible();
+    await page.getByRole('button', { name: 'Day Overview' }).click();
+    await expect(page.getByTestId('primary-content').getByRole('heading', { name: 'Day Overview' })).toBeVisible();
     expect(await surfaceProfile(page.locator('.route-view'))).toMatchObject({
       borders: ['0px', '0px', '0px', '0px'],
       radius: '0px',

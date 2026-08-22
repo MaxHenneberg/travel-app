@@ -112,12 +112,14 @@ function validateActivity(activity, path, errors) {
     errors.push(issue(path, 'invalid_type', 'must be an object.', `Replace ${path} with an activity object.`));
     return;
   }
-  rejectUnknownProperties(activity, new Set(['id', 'title', 'startsAt', 'endsAt', 'category', 'location', 'countryCode', 'notes', 'images']), path, errors);
+  rejectUnknownProperties(activity, new Set(['id', 'title', 'startsAt', 'endsAt', 'category', 'location', 'countryCode', 'notes', 'images', 'lat', 'lng']), path, errors);
   requiredString(activity.id, `${path}/id`, errors);
   requiredString(activity.title, `${path}/title`, errors);
   requiredDateTime(activity.startsAt, `${path}/startsAt`, errors);
   if (activity.endsAt !== undefined) requiredDateTime(activity.endsAt, `${path}/endsAt`, errors);
   optionalString(activity.category, `${path}/category`, errors);
+  if (activity.lat !== undefined && (!Number.isFinite(activity.lat) || activity.lat < -90 || activity.lat > 90)) errors.push(issue(path + '/lat', 'invalid_coordinate', 'must be a number between -90 and 90.', 'Correct or remove this latitude.'));
+  if (activity.lng !== undefined && (!Number.isFinite(activity.lng) || activity.lng < -180 || activity.lng > 180)) errors.push(issue(path + '/lng', 'invalid_coordinate', 'must be a number between -180 and 180.', 'Correct or remove this longitude.'));
   optionalString(activity.countryCode, `${path}/countryCode`, errors);
   optionalString(activity.location, `${path}/location`, errors);
   optionalString(activity.notes, `${path}/notes`, errors);

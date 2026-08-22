@@ -22,7 +22,7 @@ const attachmentStore = createAttachmentStore();
 const countryHistory = createCountryHistoryStore();
 window.trailbookCountryHistory = countryHistory;
 const SECTION_KEY = 'trailbook:primary-section';
-const initialSection = (() => { try { const value = sessionStorage.getItem(SECTION_KEY); return ['trip', 'route', 'history'].includes(value) ? value : 'trip'; } catch { return 'trip'; } })();
+const initialSection = (() => { try { const value = sessionStorage.getItem(SECTION_KEY); return ['trip', 'day-overview', 'route', 'history'].includes(value) ? (value === 'route' ? 'day-overview' : value) : 'trip'; } catch { return 'trip'; } })();
 const initialTheme = applyTheme(readStoredTheme());
 const shareParameters = new URL(window.location.href).searchParams;
 const shareClaimant = (() => {
@@ -342,7 +342,7 @@ function trailbookExportActionMarkup() {
 function bottomNavigation() {
   const items = [
     ['trip', 'Trip', '<path d="M3 10.5 12 3l9 7.5M5.5 9v11h13V9M9 20v-6h6v6"/>'],
-    ['route', 'Map-Route', '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h3a3 3 0 0 0 3-3V9a3 3 0 0 1 3-3"/>'],
+    ['day-overview', 'Day Overview', '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h3a3 3 0 0 0 3-3V9a3 3 0 0 1 3-3"/>'],
     ['history', 'History', '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'],
   ];
   return `<nav class="bottom-nav" aria-label="Primary">${items.map(([id, label, icon]) => `<button type="button" data-bottom-section="${id}" class="bottom-nav-item ${state.section === id ? 'active' : ''}" ${state.section === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg><span>${label}</span></button>`).join('')}</nav>`;
@@ -384,18 +384,24 @@ function routeStopMarkup(activity, index) {
   return `<li><span class="route-number" aria-hidden="true">${index + 1}</span><div><strong>${escapeHtml(activity.title)}</strong><span>${escapeHtml(name)}</span>${transport ? `<small>${escapeHtml(transport)}</small>` : ''}</div></li>`;
 }
 
-function mapRouteMarkup() {
-  if (!state.trip) return `<section class="route-view empty-card" aria-labelledby="route-title"><p class="eyebrow">Map-Route</p><h2 id="route-title" aria-label="Choose a trip first">Choose a trip</h2><button class="button primary" type="button" data-bottom-section="trip" aria-label="Go to trips">Trips</button></section>`;
-  const days = tripDays(state.trip);
-  const day = currentDay();
-  if (!day) return `<section class="route-view" aria-labelledby="route-title"><header><p class="eyebrow">${escapeHtml(tripTitle(state.trip))}</p><h2 id="route-title" aria-label="Map-Route">Route</h2><p>Choose a day</p></header><div class="route-day-list">${days.map((item, index) => {
-    const count = dayItems(item).filter((activity) => activity.type !== 'transit' && activityLocation(activity)).length;
-    return `<a href="${escapeHtml(tripHash(state.trip, item.id))}" data-route-day><span>Day ${index + 1}</span><strong>${escapeHtml(item.title || item.date)}</strong><small>${count} ${count === 1 ? 'stop' : 'stops'}</small></a>`;
-  }).join('')}</div></section>`;
-  const stops = dayItems(day).filter((activity) => activity.type !== 'transit' && activityLocation(activity));
-  return `<section class="route-view" aria-labelledby="route-title"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} route</h2><p>Available offline</p></header>${stops.length ? `<ol class="route-stop-list" aria-label="Ordered map route">${stops.map(routeStopMarkup).join('')}</ol>` : '<div class="empty-route"><strong>No mapped stops</strong></div>'}</section>`;
+function stopCoordinates(stop) {
+  const lat = firstValue(stop?.lat, stop?.location?.lat); const lng = firstValue(stop?.lng, stop?.location?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
 }
-
+function stopMapReason(stop) {
+  if (stop.lat === undefined && stop.lng === undefined) return 'No coordinates supplied';
+  if (!Number.isFinite(stop.lat) || !Number.isFinite(stop.lng)) return 'Coordinates are incomplete';
+  return 'Coordinates are outside WGS84 bounds';
+}
+function dayOverviewMarkup() {
+  if (!state.trip) return `<section class="route-view empty-card" aria-labelledby="route-title"><p class="eyebrow">Day Overview</p><h2 id="route-title" aria-label="Choose a trip first">Choose a trip</h2><button class="button primary" type="button" data-bottom-section="trip" aria-label="Go to trips">Trips</button></section>`;
+  const days = tripDays(state.trip); const day = currentDay();
+  if (!day) return `<section class="route-view" aria-labelledby="route-title"><header><p class="eyebrow">${escapeHtml(tripTitle(state.trip))}</p><h2 id="route-title">Day Overview</h2><p>Choose a day</p></header><div class="route-day-list">${days.map((item, index) => `<a href="${escapeHtml(tripHash(state.trip, item.id))}" data-route-day><span>Day ${index + 1}</span><strong>${escapeHtml(item.title || item.date)}</strong></a>`).join('')}</div></section>`;
+  const stops = dayItems(day).filter((item) => item.type !== 'transit'); const mapped = stops.filter(stopCoordinates); const unmapped = stops.filter((stop) => !stopCoordinates(stop));
+  return `<section class="route-view day-overview" aria-labelledby="route-title" data-testid="day-overview"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} · Day Overview</h2><div class="day-overview-toggle" role="group" aria-label="Day Overview display"><button type="button" class="button subtle" data-day-overview-tab="timetable" aria-pressed="true">Timetable</button><button type="button" class="button subtle" data-day-overview-tab="map" aria-pressed="false">Map</button></div></header><div data-day-overview-panel="timetable"><ol class="route-stop-list" aria-label="Ordered day stops">${stops.map(routeStopMarkup).join('')}</ol></div><div data-day-overview-panel="map" hidden><div class="lazy-day-map" data-day-overview-map data-day-id="${escapeHtml(day.id)}" aria-busy="true"><p>Loading map…</p></div></div><section class="unmapped-stops" aria-labelledby="unmapped-title"><h3 id="unmapped-title">Unmapped stops</h3>${unmapped.length ? `<ul>${unmapped.map((stop) => `<li><strong>${escapeHtml(stop.title)}</strong><span>${escapeHtml(stopMapReason(stop))}</span></li>`).join('')}</ul>` : '<p>All stops have valid coordinates.</p>'}</section><ol class="sr-only" aria-label="Accessible ordered day stops">${stops.map((stop,index) => `<li><button type="button" data-day-stop-select="${escapeHtml(stop.id)}">${index + 1}. ${escapeHtml(stop.title)}, ${escapeHtml(stop.location || 'location unavailable')}, ${escapeHtml(activityTime(stop) || 'Any time')}</button></li>`).join('')}</ol></section>`;
+}
 function observeTimeline() {
   timelineResizeObserver?.disconnect();
   timelineResizeObserver = undefined;
@@ -424,8 +430,9 @@ function observeTimeline() {
 
 async function renderUtilitySection() {
   const history = state.section === 'history';
-  app.innerHTML = `<div class="app-shell utility-shell">${kasumiMarkup()}${topbar()}<header class="utility-hero"><div class="utility-hero-content"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Map-Route'}</h1></div></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : mapRouteMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
+  app.innerHTML = `<div class="app-shell utility-shell">${kasumiMarkup()}${topbar()}<header class="utility-hero"><div class="utility-hero-content"><p class="eyebrow">${history ? 'Your travel record' : state.trip ? escapeHtml(tripTitle(state.trip)) : 'Plan visually'}</p><h1>${history ? 'History' : 'Day Overview'}</h1></div></header><main class="utility-main" data-testid="primary-content">${history ? countryHistoryMarkup() : dayOverviewMarkup()}</main>${bottomNavigation()}${noticeMarkup()}</div>`;
   bindCommon();
+  if (!history) hydrateDayOverview();
 }
 
 async function renderCollection(savedTrips) {
@@ -796,11 +803,34 @@ async function addAttachments(input) {
   await render();
 }
 
+async function hydrateDayOverview() {
+  const root = document.querySelector('[data-testid="day-overview"]'); if (!root) return;
+  const day = currentDay(); if (!day) return;
+  const setTab = async (tab) => {
+    root.querySelectorAll('[data-day-overview-tab]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.dayOverviewTab === tab)));
+    root.querySelectorAll('[data-day-overview-panel]').forEach((panel) => { panel.hidden = panel.dataset.dayOverviewPanel !== tab; });
+    try { sessionStorage.setItem(`trailbook:day-overview:${tripId(state.trip)}:${day.id}:tab`, tab); } catch { /* Session persistence is optional. */ }
+    if (tab !== 'map') return;
+    const host = root.querySelector('[data-day-overview-map]'); if (!host || host.dataset.ready) return;
+    try {
+      const { mountDayOverviewMap } = await import('../map/DayOverviewMap');
+      mountDayOverviewMap(host, dayItems(day), selectDayOverviewStop, { viewKey: 'trailbook:day-overview:' + tripId(state.trip) + ':' + day.id + ':view' }); host.dataset.ready = 'true'; host.setAttribute('aria-busy', 'false');
+    } catch { host.innerHTML = '<p class="map-unavailable" role="status">Map is unavailable. The timetable and ordered list remain available.</p>'; host.setAttribute('aria-busy', 'false'); }
+  };
+  root.querySelectorAll('[data-day-overview-tab]').forEach((button) => button.addEventListener('click', () => setTab(button.dataset.dayOverviewTab)));
+  root.querySelectorAll('[data-day-stop-select]').forEach((button) => button.addEventListener('click', () => selectDayOverviewStop(button.dataset.dayStopSelect)));
+  let tab = 'timetable'; try { tab = sessionStorage.getItem(`trailbook:day-overview:${tripId(state.trip)}:${day.id}:tab`) || tab; } catch { /* Default timetable. */ }
+  await setTab(tab);
+}
+function selectDayOverviewStop(id) {
+  const card = document.querySelector(`[data-activity-id="${CSS.escape(id)}"]`);
+  if (card) { state.section = 'trip'; try { sessionStorage.setItem(SECTION_KEY, 'trip'); } catch {} render().then(() => document.querySelector(`[data-activity-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center' })); }
+}
 function bindCommon() {
   disposeKasumi();
   disposeKasumi = createKasumiParallax({ root: document, viewport: window, navigatorObject: navigator });
   document.querySelectorAll('[data-bottom-section]').forEach((button) => button.addEventListener('click', async () => {
-    state.section = button.dataset.bottomSection;
+    state.section = button.dataset.bottomSection === 'route' ? 'day-overview' : button.dataset.bottomSection;
     window.dispatchEvent(new CustomEvent('trailbook:feature-open', { detail: state.section }));
     try { sessionStorage.setItem(SECTION_KEY, state.section); } catch { /* Navigation still works without persistence. */ }
     await render();
