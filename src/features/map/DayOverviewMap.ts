@@ -1,19 +1,55 @@
-type Stop = { id: string; title: string; location?: string | { name?: string; lat?: number; lng?: number }; startsAt?: string; time?: string; lat?: number; lng?: number };
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+type Coordinates = { lat?: number; lng?: number };
+type Stop = { id: string; title: string; location?: string | ({ name?: string } & Coordinates); startsAt?: string; time?: string } & Coordinates;
 type Transit = { type: 'transit'; fromStopId: string; toStopId: string };
+type View = { center: [number, number]; zoom: number };
+
 const coordinates = (stop: Stop) => ({ lat: stop.lat ?? (typeof stop.location === 'object' ? stop.location.lat : undefined), lng: stop.lng ?? (typeof stop.location === 'object' ? stop.location.lng : undefined) });
 const valid = (stop: Stop) => { const point = coordinates(stop); return Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat!) <= 90 && Math.abs(point.lng!) <= 180; };
-const time = (stop: Stop) => stop.startsAt?.match(/T(\d\d:\d\d)/)?.[1] ?? 'Any time';
+const locationName = (stop: Stop) => typeof stop.location === 'string' ? stop.location : stop.location?.name || 'location unavailable';
+const time = (stop: Stop) => stop.startsAt?.match(/T(\d\d:\d\d)/)?.[1] ?? stop.time ?? 'Any time';
 
-/** Lightweight offline-safe SVG overview; intentionally no tile provider or geocoding dependency. */
-export function mountDayOverviewMap(host: HTMLElement, items: Array<Stop | Transit>, onSelect: (id: string) => void) {
+function savedView(key?: string): View | undefined {
+  if (!key) return undefined;
+  try { const value = JSON.parse(sessionStorage.getItem(key) || ''); return Array.isArray(value?.center) && Number.isFinite(value.center[0]) && Number.isFinite(value.center[1]) && Number.isFinite(value.zoom) ? value : undefined; } catch { return undefined; }
+}
+function saveView(key: string | undefined, map: L.Map) {
+  if (!key) return;
+  const center = map.getCenter();
+  try { sessionStorage.setItem(key, JSON.stringify({ center: [center.lat, center.lng], zoom: map.getZoom() })); } catch { /* In-memory map remains usable when storage is unavailable. */ }
+}
+
+/** Lazy-loaded Leaflet + OpenStreetMap basemap. No geocoding or itinerary mutation occurs here. */
+export function mountDayOverviewMap(host: HTMLElement, items: Array<Stop | Transit>, onSelect: (id: string) => void, { viewKey }: { viewKey?: string } = {}) {
   const stops = items.filter((item): item is Stop => (item as Transit).type !== 'transit');
   const pins = stops.filter(valid);
-  if (!pins.length) { host.innerHTML = '<p class="map-unavailable" role="status">No stops have valid coordinates. The timetable and ordered list remain available.</p>'; return; }
-  const lats = pins.map((s) => coordinates(s).lat!); const lngs = pins.map((s) => coordinates(s).lng!);
-  const minLat = Math.min(...lats); const maxLat = Math.max(...lats); const minLng = Math.min(...lngs); const maxLng = Math.max(...lngs);
-  const project = (stop: Stop) => { const point = coordinates(stop); return { x: 12 + ((point.lng! - minLng) / (maxLng - minLng || 1)) * 76, y: 88 - ((point.lat! - minLat) / (maxLat - minLat || 1)) * 76 }; };
-  const byId = new Map(pins.map((s) => [s.id, s]));
-  const edges = items.filter((item): item is Transit => (item as Transit).type === 'transit').map((transit) => [byId.get(transit.fromStopId), byId.get(transit.toStopId)]).filter((edge): edge is [Stop, Stop] => Boolean(edge[0] && edge[1]));
-  host.innerHTML = `<svg class="day-overview-map" viewBox="0 0 100 100" role="img" aria-label="Map with ${pins.length} ordered stops">${edges.map(([a,b]) => { const pa=project(a); const pb=project(b); return `<line class="map-edge" x1="${pa.x}" y1="${pa.y}" x2="${pb.x}" y2="${pb.y}" />`; }).join('')}${pins.map((stop) => { const p=project(stop); const order=stops.indexOf(stop)+1; return `<g class="map-pin" tabindex="0" role="button" data-day-map-pin="${stop.id}" aria-label="Stop ${order}: ${stop.title}, ${stop.location || 'location unavailable'}, ${time(stop)}"><circle cx="${p.x}" cy="${p.y}" r="6"/><text x="${p.x}" y="${p.y + 1.5}">${order}</text><text class="map-pin-label" x="${p.x}" y="${p.y - 8}">${stop.title}</text></g>`; }).join('')}</svg>`;
-  host.querySelectorAll<HTMLElement>('[data-day-map-pin]').forEach((pin) => { const select = () => onSelect(pin.dataset.dayMapPin!); pin.addEventListener('click', select); pin.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } }); });
+  if (!pins.length) { host.innerHTML = '<p class="map-unavailable" role="status">No stops have valid coordinates. The timetable and ordered list remain available.</p>'; return () => {}; }
+  host.innerHTML = '<div class="leaflet-day-map" data-map-canvas aria-label="Interactive OpenStreetMap day map"></div><p class="map-tile-status" data-map-tile-status hidden role="status">Map tiles are unavailable. The timetable and ordered stop list remain available.</p>';
+  const canvas = host.querySelector<HTMLElement>('[data-map-canvas]')!;
+  const bounds = L.latLngBounds(pins.map((stop) => { const point = coordinates(stop); return [point.lat!, point.lng!] as L.LatLngExpression; }));
+  const stored = savedView(viewKey);
+  const map = L.map(canvas, { zoomControl: true, attributionControl: true, keyboard: true, scrollWheelZoom: true, preferCanvas: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, crossOrigin: true, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' }).addTo(map);
+  if (stored) map.setView(stored.center, stored.zoom); else if (pins.length === 1) map.setView(bounds.getCenter(), 14); else map.fitBounds(bounds.pad(0.22), { maxZoom: 15 });
+  const status = host.querySelector<HTMLElement>('[data-map-tile-status]')!;
+  const showTileFallback = () => { status.hidden = false; canvas.classList.add('tiles-unavailable'); };
+  if (!navigator.onLine) showTileFallback();
+  map.eachLayer((layer) => { if (layer instanceof L.TileLayer) layer.on('tileerror', showTileFallback); });
+  const byId = new Map(pins.map((stop) => [stop.id, stop]));
+  for (const transit of items.filter((item): item is Transit => (item as Transit).type === 'transit')) {
+    const from = byId.get(transit.fromStopId); const to = byId.get(transit.toStopId);
+    if (from && to) { const a = coordinates(from); const b = coordinates(to); L.polyline([[a.lat!, a.lng!], [b.lat!, b.lng!]], { color: '#126b56', weight: 4, dashArray: '7 7', opacity: 0.8, interactive: false }).addTo(map); }
+  }
+  for (const stop of pins) {
+    const point = coordinates(stop); const order = stops.indexOf(stop) + 1;
+    const icon = L.divIcon({ className: 'day-map-marker-shell', html: `<button type="button" class="day-map-marker" data-day-map-pin="${stop.id}" aria-label="Stop ${order}: ${stop.title}, ${locationName(stop)}, ${time(stop)}">${order}</button>`, iconSize: [44, 44], iconAnchor: [22, 22] });
+    const marker = L.marker([point.lat!, point.lng!], { icon, keyboard: true, title: stop.title, alt: `Stop ${order}: ${stop.title}` }).addTo(map);
+    marker.bindPopup(`<strong>${stop.title}</strong><br>${locationName(stop)}<br>${time(stop)}`);
+    marker.on('click keypress', () => onSelect(stop.id));
+  }
+  map.on('moveend', () => saveView(viewKey, map));
+  requestAnimationFrame(() => map.invalidateSize());
+  return () => map.remove();
 }

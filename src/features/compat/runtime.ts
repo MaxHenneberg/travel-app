@@ -814,7 +814,7 @@ async function hydrateDayOverview() {
     const host = root.querySelector('[data-day-overview-map]'); if (!host || host.dataset.ready) return;
     try {
       const { mountDayOverviewMap } = await import('../map/DayOverviewMap');
-      mountDayOverviewMap(host, dayItems(day), selectDayOverviewStop); host.dataset.ready = 'true'; host.setAttribute('aria-busy', 'false');
+      mountDayOverviewMap(host, dayItems(day), selectDayOverviewStop, { viewKey: 'trailbook:day-overview:' + tripId(state.trip) + ':' + day.id + ':view' }); host.dataset.ready = 'true'; host.setAttribute('aria-busy', 'false');
     } catch { host.innerHTML = '<p class="map-unavailable" role="status">Map is unavailable. The timetable and ordered list remain available.</p>'; host.setAttribute('aria-busy', 'false'); }
   };
   root.querySelectorAll('[data-day-overview-tab]').forEach((button) => button.addEventListener('click', () => setTab(button.dataset.dayOverviewTab)));

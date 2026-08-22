@@ -28,10 +28,19 @@ test('TA-TRAVEL-126-01 @pr exposes the offline-safe Day Overview map and ordered
   await expect(page.getByTestId('day-overview')).toBeVisible();
   await expect(page.locator('[aria-label="Ordered day stops"] > li')).toHaveCount(2);
   await page.getByRole('button', { name: 'Map' }).click();
-  const map = page.locator('.day-overview-map');
+  const map = page.locator('[data-map-canvas]');
   await expect(map).toBeVisible();
-  await expect(map.getByRole('button', { name: /Lisbon Oriente/ })).toBeVisible();
-  await expect(map.getByRole('button', { name: /Cacilhas waterfront/ })).toBeVisible();
+  await expect(map.locator('[data-day-map-pin="lisbon-station"]')).toBeVisible();
+  await expect(map.locator('[data-day-map-pin="cacilhas"]')).toBeVisible();
+  await expect(map.locator('.leaflet-tile')).not.toHaveCount(0);
   await expect(page.locator('[data-day-map-pin]')).toHaveCount(2);
   await expect(page.getByRole('list', { name: 'Accessible ordered day stops' })).toContainText('Lisbon Oriente');
+});
+
+test('Day Overview retains the accessible stop list when OpenStreetMap tiles fail', async ({ page }) => {
+  await page.route(/https:\/\/[a-c]\.tile\.openstreetmap\.org\//, (route) => route.abort());
+  await page.goto('./#/trip/transit-example/v/1/day/arrival');
+  await page.getByRole('button', { name: 'Day Overview' }).click();
+  await page.getByRole('button', { name: 'Map' }).click();
+  await expect(page.locator('[aria-label="Ordered day stops"] > li')).toHaveCount(2);
 });
