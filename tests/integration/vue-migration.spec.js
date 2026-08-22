@@ -158,7 +158,7 @@ test('TA-TRAVEL-121-04 @pr @post-deploy preserves responsive themes and lazy hea
   expect(scripts.some((url) => /DayOverviewMap|GlobeFallback/.test(url))).toBeFalsy();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   await page.getByRole('button', { name: 'Day Overview' }).click();
-  await expect(page.getByRole('heading', { name: 'Day Overview' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Day Overview', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Map' }).click();
   await expect.poll(() => scripts.some((url) => /DayOverviewMap/.test(url))).toBeTruthy();
   expect(scripts.some((url) => /GlobeFallback/.test(url))).toBeFalsy();

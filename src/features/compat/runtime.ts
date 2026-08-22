@@ -396,7 +396,7 @@ function stopMapReason(stop) {
   return 'Coordinates are outside WGS84 bounds';
 }
 function dayOverviewMarkup() {
-  if (!state.trip) return `<section class="route-view empty-card" aria-labelledby="route-title"><p class="eyebrow">Day Overview</p><h2 id="route-title">Choose a trip</h2><button class="button primary" type="button" data-bottom-section="trip">Trips</button></section>`;
+  if (!state.trip) return `<section class="route-view empty-card" aria-labelledby="route-title"><p class="eyebrow">Day Overview</p><h2 id="route-title" aria-label="Choose a trip first">Choose a trip</h2><button class="button primary" type="button" data-bottom-section="trip" aria-label="Go to trips">Trips</button></section>`;
   const days = tripDays(state.trip); const day = currentDay();
   if (!day) return `<section class="route-view" aria-labelledby="route-title"><header><p class="eyebrow">${escapeHtml(tripTitle(state.trip))}</p><h2 id="route-title">Day Overview</h2><p>Choose a day</p></header><div class="route-day-list">${days.map((item, index) => `<a href="${escapeHtml(tripHash(state.trip, item.id))}" data-route-day><span>Day ${index + 1}</span><strong>${escapeHtml(item.title || item.date)}</strong></a>`).join('')}</div></section>`;
   const stops = dayItems(day).filter((item) => item.type !== 'transit'); const mapped = stops.filter(stopCoordinates); const unmapped = stops.filter((stop) => !stopCoordinates(stop));

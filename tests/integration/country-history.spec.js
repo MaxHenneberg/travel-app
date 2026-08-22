@@ -16,9 +16,9 @@ async function collection(page) {
 test('bottom navigation preserves overview and active trip context across all three sections', async ({ page }) => {
   await page.goto('./');
   const nav = page.getByRole('navigation', { name: 'Primary' });
-  await expect(nav.getByRole('button')).toHaveText(['Trip', 'Map-Route', 'History']);
+  await expect(nav.getByRole('button')).toHaveText(['Trip', 'Day Overview', 'History']);
   await expect(nav.getByRole('button', { name: 'Trip' })).toHaveAttribute('aria-current', 'page');
-  await nav.getByRole('button', { name: 'Map-Route' }).click();
+  await nav.getByRole('button', { name: 'Day Overview' }).click();
   await expect(page.getByRole('heading', { name: 'Choose a trip first' })).toBeVisible();
   await page.getByRole('button', { name: 'Go to trips' }).click();
   await expect(page.getByRole('heading', { name: 'Trip collection' })).toBeVisible();
@@ -30,10 +30,10 @@ test('bottom navigation preserves overview and active trip context across all th
     ] }] },
   })) });
   await expect(page.getByRole('heading', { name: 'Country trip' })).toBeVisible();
-  await nav.getByRole('button', { name: 'Map-Route' }).click();
-  await expect(page.getByTestId('primary-content').getByRole('heading', { name: 'Map-Route' })).toBeVisible();
+  await nav.getByRole('button', { name: 'Day Overview' }).click();
+  await expect(page.getByTestId('primary-content').getByRole('heading', { name: 'Day Overview' })).toBeVisible();
   await page.locator('[data-route-day]').click();
-  await expect(page.getByRole('heading', { name: 'Tokyo day route' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tokyo day · Day Overview' })).toBeVisible();
   await expect(page.locator('.route-stop-list li')).toHaveCount(2);
   await expect(page.locator('.route-stop-list')).toContainText('Tokyo Station');
   await nav.getByRole('button', { name: 'History' }).click();
