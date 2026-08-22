@@ -155,11 +155,12 @@ test('TA-TRAVEL-121-04 @pr @post-deploy preserves responsive themes and lazy hea
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto('./#/trip/weekend-lisbon/v/1/day/arrival');
   await expect(page.getByRole('heading', { name: 'Arrival & Alfama' })).toBeVisible();
-  expect(scripts.some((url) => /MapFeature|GlobeFallback/.test(url))).toBeFalsy();
+  expect(scripts.some((url) => /DayOverviewMap|GlobeFallback/.test(url))).toBeFalsy();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
-  await page.getByRole('button', { name: 'Map-Route' }).click();
-  await expect(page.getByRole('heading', { name: 'Map-Route' })).toBeVisible();
-  await expect.poll(() => scripts.some((url) => /MapFeature/.test(url))).toBeTruthy();
+  await page.getByRole('button', { name: 'Day Overview' }).click();
+  await expect(page.getByRole('heading', { name: 'Day Overview' })).toBeVisible();
+  await page.getByRole('button', { name: 'Map' }).click();
+  await expect.poll(() => scripts.some((url) => /DayOverviewMap/.test(url))).toBeTruthy();
   expect(scripts.some((url) => /GlobeFallback/.test(url))).toBeFalsy();
   await page.getByRole('button', { name: 'Open app menu' }).click();
   await page.locator('#theme-selector').selectOption('neon-japan');

@@ -385,9 +385,10 @@ function routeStopMarkup(activity, index) {
 }
 
 function stopCoordinates(stop) {
-  if (!Number.isFinite(stop?.lat) || !Number.isFinite(stop?.lng)) return null;
-  if (stop.lat < -90 || stop.lat > 90 || stop.lng < -180 || stop.lng > 180) return null;
-  return { lat: stop.lat, lng: stop.lng };
+  const lat = firstValue(stop?.lat, stop?.location?.lat); const lng = firstValue(stop?.lng, stop?.location?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
 }
 function stopMapReason(stop) {
   if (stop.lat === undefined && stop.lng === undefined) return 'No coordinates supplied';
@@ -398,7 +399,7 @@ function dayOverviewMarkup() {
   if (!state.trip) return `<section class="route-view empty-card" aria-labelledby="route-title"><p class="eyebrow">Day Overview</p><h2 id="route-title">Choose a trip</h2><button class="button primary" type="button" data-bottom-section="trip">Trips</button></section>`;
   const days = tripDays(state.trip); const day = currentDay();
   if (!day) return `<section class="route-view" aria-labelledby="route-title"><header><p class="eyebrow">${escapeHtml(tripTitle(state.trip))}</p><h2 id="route-title">Day Overview</h2><p>Choose a day</p></header><div class="route-day-list">${days.map((item, index) => `<a href="${escapeHtml(tripHash(state.trip, item.id))}" data-route-day><span>Day ${index + 1}</span><strong>${escapeHtml(item.title || item.date)}</strong></a>`).join('')}</div></section>`;
-  const stops = dayItems(day).filter((item) => item.type === 'stop'); const mapped = stops.filter(stopCoordinates); const unmapped = stops.filter((stop) => !stopCoordinates(stop));
+  const stops = dayItems(day).filter((item) => item.type !== 'transit'); const mapped = stops.filter(stopCoordinates); const unmapped = stops.filter((stop) => !stopCoordinates(stop));
   return `<section class="route-view day-overview" aria-labelledby="route-title" data-testid="day-overview"><header><a class="overview-link" href="${escapeHtml(tripHash(state.trip))}">All days</a><p class="eyebrow">${escapeHtml(day.date)}</p><h2 id="route-title">${escapeHtml(day.title || day.date)} · Day Overview</h2><div class="day-overview-toggle" role="group" aria-label="Day Overview display"><button type="button" class="button subtle" data-day-overview-tab="timetable" aria-pressed="true">Timetable</button><button type="button" class="button subtle" data-day-overview-tab="map" aria-pressed="false">Map</button></div></header><div data-day-overview-panel="timetable"><ol class="route-stop-list" aria-label="Ordered day stops">${stops.map(routeStopMarkup).join('')}</ol></div><div data-day-overview-panel="map" hidden><div class="lazy-day-map" data-day-overview-map data-day-id="${escapeHtml(day.id)}" aria-busy="true"><p>Loading map…</p></div></div><section class="unmapped-stops" aria-labelledby="unmapped-title"><h3 id="unmapped-title">Unmapped stops</h3>${unmapped.length ? `<ul>${unmapped.map((stop) => `<li><strong>${escapeHtml(stop.title)}</strong><span>${escapeHtml(stopMapReason(stop))}</span></li>`).join('')}</ul>` : '<p>All stops have valid coordinates.</p>'}</section><ol class="sr-only" aria-label="Accessible ordered day stops">${stops.map((stop,index) => `<li><button type="button" data-day-stop-select="${escapeHtml(stop.id)}">${index + 1}. ${escapeHtml(stop.title)}, ${escapeHtml(stop.location || 'location unavailable')}, ${escapeHtml(activityTime(stop) || 'Any time')}</button></li>`).join('')}</ol></section>`;
 }
 function observeTimeline() {

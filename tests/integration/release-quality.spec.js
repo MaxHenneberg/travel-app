@@ -46,7 +46,7 @@ test('TA-TRAVEL-12-01 @pr applies a new service-worker version as one consistent
   await page.goto('./#/trip/weekend-lisbon/v/1/day/river-day');
   const activeDay = page.getByRole('heading', { name: /river$/i });
   await expect(activeDay).toBeVisible();
-  const mapsButton = page.getByRole('button', { name: 'Map-Route' });
+  const mapsButton = page.getByRole('button', { name: 'Day Overview' });
   await mapsButton.focus();
   const prompt = page.getByRole('complementary', { name: 'Trailbook update ready' });
   await expect(prompt).toBeVisible();
@@ -83,8 +83,8 @@ test('TA-TRAVEL-12-02 @pr @post-deploy completes the critical Android regression
   await expect(page.getByRole('heading', { name: /river$/i })).toBeVisible();
   const mapLink = page.getByRole('link', { name: /Google Maps/i }).first();
   await expect(mapLink).toHaveAttribute('href', /^https:\/\/www\.google\.com\/maps\//);
-  await page.getByRole('button', { name: 'Map-Route' }).click();
-  await expect(page.getByRole('heading', { name: 'Map-Route' })).toBeVisible();
+  await page.getByRole('button', { name: 'Day Overview' }).click();
+  await expect(page.getByRole('heading', { name: 'Day Overview' })).toBeVisible();
   await page.getByRole('button', { name: 'Trip' }).click();
   await expect(page.getByRole('heading', { name: /river$/i })).toBeVisible();
 
