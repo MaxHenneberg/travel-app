@@ -28,6 +28,10 @@ test('TA-TRAVEL-126-01 @pr exposes the offline-safe Day Overview map and ordered
   await expect(page.getByTestId('day-overview')).toBeVisible();
   await expect(page.locator('[aria-label="Ordered day stops"] > li')).toHaveCount(2);
   await page.getByRole('button', { name: 'Map' }).click();
+  const map = page.locator('.day-overview-map');
+  await expect(map).toBeVisible();
+  await expect(map.getByRole('button', { name: /Lisbon Oriente/ })).toBeVisible();
+  await expect(map.getByRole('button', { name: /Cacilhas waterfront/ })).toBeVisible();
   await expect(page.locator('[data-day-map-pin]')).toHaveCount(2);
   await expect(page.getByRole('list', { name: 'Accessible ordered day stops' })).toContainText('Lisbon Oriente');
 });
