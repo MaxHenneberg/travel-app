@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "itineraries": [
+    {
+      "id": "weekend-lisbon",
+      "revision": 1
+    },
+    {
+      "id": "transit-example",
+      "revision": 1
+    }
+  ]
+}
