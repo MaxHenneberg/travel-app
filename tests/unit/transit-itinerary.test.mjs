@@ -34,3 +34,11 @@ test('reports the exact discriminator and unknown neighbor-stop reference paths'
   itinerary.trip.days[0].items[1].type = 'transit';
   assert.ok(inspectItinerary(itinerary).errors.some((error) => error.path === '/trip/days/0/items/1/fromStopId'));
 });
+
+test('validates optional WGS84 stop coordinates with exact paths', () => {
+  const itinerary = validateItinerary(v10());
+  itinerary.trip.days[0].items[0].lat = 38.7676; itinerary.trip.days[0].items[0].lng = -9.0992;
+  assert.equal(inspectItinerary(itinerary).valid, true);
+  itinerary.trip.days[0].items[0].lat = 91;
+  assert.ok(inspectItinerary(itinerary).errors.some((error) => error.path === '/trip/days/0/items/0/lat'));
+});
